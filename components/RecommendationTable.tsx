@@ -30,7 +30,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
     }
   };
 
-  return <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
+  return <Card className="recommendations-shell" withBorder shadow="md" radius="xl" p={{ base: 'sm', sm: 'lg' }}>
     <Stack gap="md">
       <Group justify="space-between" align="flex-start" gap="sm">
         <div>

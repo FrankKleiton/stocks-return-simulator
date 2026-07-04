@@ -94,6 +94,11 @@ body {
 }
 .hero-shell > * { position: relative; z-index: 1; }
 .hero-insight-card { min-height: 100%; }
+.recommendations-shell {
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.10), rgba(139, 92, 246, 0.08) 46%, rgba(16, 185, 129, 0.06)),
+    rgba(2, 6, 23, 0.58) !important;
+}
 .hero-stat {
   border: 1px solid rgba(34, 211, 238, 0.16);
   border-radius: 18px;
@@ -162,6 +167,12 @@ body {
 [data-mantine-color-scheme='light'] .hero-stat {
   border-color: rgba(14, 116, 144, 0.16);
   background: rgba(255, 255, 255, 0.66);
+}
+
+[data-mantine-color-scheme='light'] .recommendations-shell {
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.08), rgba(124, 58, 237, 0.06) 46%, rgba(5, 150, 105, 0.05)),
+    rgba(255, 255, 255, 0.78) !important;
 }
 
 [data-mantine-color-scheme='light'] .mantine-Input-input {
