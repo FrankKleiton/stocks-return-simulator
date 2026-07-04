@@ -73,7 +73,8 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
                 </SimpleGrid>
                 <Text size="xs" c="dimmed">Selected FCF history: {valuationByTicker[stock.ticker].selectedAnnualFcf.map(point => `${point.year}: ${brl(point.fcf)}`).join(' • ')}</Text>
                 {valuationByTicker[stock.ticker].warnings.length > 0 && <Stack gap={2}>{valuationByTicker[stock.ticker].warnings.map(warning => <Text key={warning.code} size="xs" c="yellow.4">⚠ {warning.message}</Text>)}</Stack>}
-              </Stack> : <Text size="sm" c="dimmed">Historical FCF valuation unavailable: {valuationByTicker[stock.ticker].message ?? 'positive annual FCF data is unavailable'}.</Text>}
+                <Text size="xs" c="dimmed">Educational analytics only. This simplified valuation is not a DCF and may be unreliable when interest rates, commodity cycles, or FCF volatility are high.</Text>
+              </Stack> : <Stack gap={4}><Text size="sm" c="dimmed">Historical FCF valuation unavailable: {valuationByTicker[stock.ticker].message ?? 'positive annual FCF data is unavailable'}.</Text><Text size="xs" c="dimmed">Educational analytics only. This simplified valuation is not a DCF and may be unreliable when interest rates, commodity cycles, or FCF volatility are high.</Text></Stack>}
             </Card>}
 
             <SimpleGrid cols={{ base: 2, sm: 3, md: 4, xl: 6 }} spacing="sm">

@@ -137,4 +137,22 @@ describe('historical FCF valuation', () => {
       normalizedFcf: -60
     });
   });
+
+  test('does not return v1 recommendation precision outputs', async () => {
+    const valuation = await getHistoricalFcfValuation('SAFE3', {
+      fetchAnnualFcf: async () => [
+        { year: 2022, fcf: 100 },
+        { year: 2023, fcf: 100 }
+      ]
+    });
+
+    expect(valuation.status).toBe('available');
+    expect(valuation).not.toHaveProperty('recommendation');
+    expect(valuation).not.toHaveProperty('rating');
+    expect(valuation).not.toHaveProperty('buyHoldSell');
+    expect(valuation).not.toHaveProperty('fairValuePerShare');
+    expect(valuation).not.toHaveProperty('targetPrice');
+    expect(valuation).not.toHaveProperty('marketCapComparison');
+    expect(valuation).not.toHaveProperty('netDebtAdjustedEquityValue');
+  });
 });

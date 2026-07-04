@@ -21,7 +21,13 @@ const d = (v: unknown) => {
   }
   return s.slice(0, 10);
 };
-async function getJson<T>(url: string, init?: RequestInit) { const r = await fetch(url, { ...init, headers: { ...headers, ...(init?.headers || {}) }, next: { revalidate: 3600 } }); if (!r.ok) throw new Error(`${r.status} ${url}`); return r.json() as Promise<T>; }
+type StatusInvestRequestInit = RequestInit & { next?: { revalidate?: number } };
+async function getJson<T>(url: string, init?: StatusInvestRequestInit) {
+  const defaultCache = init?.cache === 'no-store' || init?.next ? {} : { next: { revalidate: 3600 } };
+  const r = await fetch(url, { ...defaultCache, ...init, headers: { ...headers, ...(init?.headers || {}) } });
+  if (!r.ok) throw new Error(`${r.status} ${url}`);
+  return r.json() as Promise<T>;
+}
 
 export async function fetchStockList(): Promise<StockSummary[]> {
   return cached('stock-list', 1000 * 60 * 60 * 12, async () => {
@@ -105,16 +111,14 @@ function collectAnnualFcf(value: any): AnnualFcfPoint[] {
 
 export async function fetchAnnualFcf(ticker: string): Promise<AnnualFcfPoint[]> {
   const t = normalizeTicker(ticker);
-  return cached(`fcf-${t}`, 1000 * 60 * 60 * 24, async () => {
-    const body = new URLSearchParams();
-    body.append('codes[]', t.toLowerCase());
-    body.append('time', '10');
-    body.append('byQuarter', 'false');
-    body.append('futureData', 'false');
-    const json: any = await retry(() => getJson(`${BASE}/acao/indicatorhistoricallist`, { method: 'POST', body, headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' } }));
-    const scoped = json?.data?.[t.toLowerCase()] ?? json?.data?.[t] ?? json;
-    return collectAnnualFcf(scoped);
-  });
+  const body = new URLSearchParams();
+  body.append('codes[]', t.toLowerCase());
+  body.append('time', '10');
+  body.append('byQuarter', 'false');
+  body.append('futureData', 'false');
+  const json: any = await retry(() => getJson(`${BASE}/acao/indicatorhistoricallist`, { method: 'POST', body, cache: 'no-store', headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' } }));
+  const scoped = json?.data?.[t.toLowerCase()] ?? json?.data?.[t] ?? json;
+  return collectAnnualFcf(scoped);
 }
 
 export const statusInvestFcfAdapter: FcfDataAdapter = { fetchAnnualFcf };
