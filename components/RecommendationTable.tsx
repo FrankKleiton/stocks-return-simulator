@@ -1,6 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { Badge, Button, Card, Group, ScrollArea, Select, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import type { HistoricalFcfValuation } from '@/lib/fcfValuation';
 import type { Recommendation } from '@/lib/types';
 import { brl, pct } from '@/lib/metrics';
 
@@ -13,7 +14,19 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 
 export default function RecommendationTable({ data, onAdd, loading }: { data: Recommendation[]; loading: boolean; onAdd: (r: Recommendation) => void }) {
   const [sortBy, setSortBy] = useState<'quality' | 'valuation' | 'magic'>('quality');
+  const [valuationByTicker, setValuationByTicker] = useState<Record<string, HistoricalFcfValuation>>({});
+  const [loadingValuation, setLoadingValuation] = useState<string>();
   const sortedData = useMemo(() => [...data].sort((a, b) => sortBy === 'valuation' ? b.valuationScore - a.valuationScore : sortBy === 'magic' ? b.magicFormulaScore - a.magicFormulaScore : b.qualityScore - a.qualityScore), [data, sortBy]);
+
+  const analyzeFcf = async (ticker: string) => {
+    setLoadingValuation(ticker);
+    try {
+      const valuation = await fetch(`/api/fcf-valuation?ticker=${encodeURIComponent(ticker)}`).then(r => r.json());
+      setValuationByTicker(current => ({ ...current, [ticker]: valuation }));
+    } finally {
+      setLoadingValuation(undefined);
+    }
+  };
 
   return <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
     <Stack gap="md">
@@ -41,8 +54,23 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
                   <Text size="xs" c="dimmed">{stock.industry}</Text>
                 </div>
               </Group>
-              <Button size="xs" onClick={() => onAdd(stock)}>Add</Button>
+              <Group gap="xs" wrap="nowrap">
+                <Button size="xs" variant="light" loading={loadingValuation === stock.ticker} onClick={() => analyzeFcf(stock.ticker)}>Analyze FCF</Button>
+                <Button size="xs" onClick={() => onAdd(stock)}>Add</Button>
+              </Group>
             </Group>
+
+            {valuationByTicker[stock.ticker] && <Card withBorder radius="md" p="sm" bg="dark.8">
+              {valuationByTicker[stock.ticker].status === 'available' ? <Stack gap={4}>
+                <Group gap="xs"><Badge color="matrix" variant="light">Historical FCF valuation</Badge><Text size="xs" c="dimmed">Latest {valuationByTicker[stock.ticker].selectedAnnualFcf.length} annual values</Text></Group>
+                <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
+                  <Metric label="Normalized FCF" value={brl(valuationByTicker[stock.ticker].normalizedFcf)} />
+                  <Metric label="Conservative 10%" value={brl(valuationByTicker[stock.ticker].scenarios.conservative.companyValue)} />
+                  <Metric label="Base 8%" value={brl(valuationByTicker[stock.ticker].scenarios.base.companyValue)} />
+                  <Metric label="Optimistic 6%" value={brl(valuationByTicker[stock.ticker].scenarios.optimistic.companyValue)} />
+                </SimpleGrid>
+              </Stack> : <Text size="sm" c="dimmed">Historical FCF valuation unavailable for positive annual FCF data.</Text>}
+            </Card>}
 
             <SimpleGrid cols={{ base: 2, sm: 3, md: 4, xl: 6 }} spacing="sm">
               <Metric label="Price" value={brl(stock.price)} />
