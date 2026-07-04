@@ -5,6 +5,7 @@ import RecommendationTable from '@/components/RecommendationTable';
 import PortfolioBuilder from '@/components/PortfolioBuilder';
 import SimulationForm from '@/components/SimulationForm';
 import ResultsDashboard from '@/components/ResultsDashboard';
+import ColorSchemeToggle from '@/components/ColorSchemeToggle';
 import type { PortfolioItem, Recommendation, SimulationResult } from '@/lib/types';
 
 const workflow = [
@@ -30,10 +31,13 @@ export default function Home() {
   return <Container size="xl" px={{ base: 'xs', sm: 'md', lg: 'xl' }} py={{ base: 'md', sm: 'xl' }}>
     <Stack gap="xl">
       <Box component="header" py={{ base: 'sm', sm: 'xl' }}>
-        <Group gap="xs" mb="md">
-          <Badge color="cyber" variant="light">Status Invest data</Badge>
-          <Badge color="plasma" variant="light">Chart.js analytics</Badge>
-          <Badge color="matrix" variant="light">Dividend simulator</Badge>
+        <Group justify="space-between" align="center" gap="md" mb="md">
+          <Group gap="xs">
+            <Badge color="cyber" variant="light">Status Invest data</Badge>
+            <Badge color="plasma" variant="light">Chart.js analytics</Badge>
+            <Badge color="matrix" variant="light">Dividend simulator</Badge>
+          </Group>
+          <ColorSchemeToggle />
         </Group>
         <Text size="xs" fw={700} tt="uppercase" c="cyber.3" style={{ letterSpacing: '0.22em' }}>Brazil Market Intelligence</Text>
         <Title className="hero-title" order={1} mt="sm" fz={{ base: 36, sm: 52, md: 72 }} lh={0.98}>Portfolio backtesting for Brazilian stocks</Title>

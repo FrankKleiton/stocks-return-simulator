@@ -90,3 +90,59 @@ body {
 .input { @apply rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500; }
 .btn { @apply rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-50; }
 .btn-secondary { @apply rounded-lg border border-white/10 px-3 py-2 text-sm hover:bg-white/10; }
+
+[data-mantine-color-scheme='light'] {
+  --tech-bg: #f8fafc;
+  --tech-surface: #ffffff;
+  --tech-panel: rgba(255, 255, 255, 0.88);
+  --tech-border: rgba(14, 116, 144, 0.18);
+  --tech-glow: rgba(14, 116, 144, 0.12);
+  --tech-cyan: #0891b2;
+  --tech-violet: #7c3aed;
+  --tech-green: #059669;
+  --tech-amber: #d97706;
+}
+
+[data-mantine-color-scheme='light'] body {
+  color: #0f172a;
+  background:
+    radial-gradient(circle at 10% -10%, rgba(14, 116, 144, 0.16), transparent 34rem),
+    radial-gradient(circle at 95% 5%, rgba(124, 58, 237, 0.13), transparent 32rem),
+    radial-gradient(circle at 50% 110%, rgba(5, 150, 105, 0.10), transparent 36rem),
+    var(--tech-bg);
+}
+
+[data-mantine-color-scheme='light'] .mantine-Card-root,
+[data-mantine-color-scheme='light'] .mantine-Paper-root {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--tech-panel));
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.10), 0 0 28px var(--tech-glow);
+}
+
+[data-mantine-color-scheme='light'] .mantine-Input-input {
+  background: rgba(255, 255, 255, 0.86) !important;
+  border-color: rgba(15, 23, 42, 0.14) !important;
+}
+
+[data-mantine-color-scheme='light'] .mantine-Table-th { color: #0e7490; }
+[data-mantine-color-scheme='light'] .mantine-Table-tr:hover { background-color: rgba(14, 116, 144, 0.08) !important; }
+
+[data-mantine-color-scheme='light'] .hero-title {
+  background: linear-gradient(135deg, #0f172a 0%, #0891b2 38%, #7c3aed 72%, #059669 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+[data-mantine-color-scheme='light'] .portfolio-stock-row {
+  border-color: rgba(14, 116, 144, 0.18);
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.10), rgba(124, 58, 237, 0.08)),
+    rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.60), 0 10px 24px rgba(15,23,42,0.08);
+}
+
+[data-mantine-color-scheme='light'] .portfolio-stock-row:hover {
+  border-color: rgba(14, 116, 144, 0.34);
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.14), rgba(124, 58, 237, 0.10)),
+    rgba(255, 255, 255, 0.94);
+}
