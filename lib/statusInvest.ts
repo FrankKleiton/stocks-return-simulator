@@ -84,41 +84,31 @@ export async function fetchIndicators(ticker: string): Promise<IndicatorPoint[]>
   });
 }
 
-const fcfKey = (key: string) => /(^|_|\b)(fcf|fcl|freecashflow|free_cash_flow|fluxocaixalivre|fluxodecaixalivre|fluxo_caixa_livre)(_|\b|$)/i.test(key.replace(/\s+/g, '').toLowerCase());
+const cashFlowMoney = (value: unknown) => {
+  const text = String(value ?? '').trim();
+  const multiplier = /\bB\b/i.test(text) ? 1_000_000_000 : /\bM\b/i.test(text) ? 1_000_000 : /\bK\b/i.test(text) ? 1_000 : 1;
+  const numeric = Number(text.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(numeric) ? numeric * multiplier : 0;
+};
 
-function collectAnnualFcf(value: any): AnnualFcfPoint[] {
-  const points: AnnualFcfPoint[] = [];
-  const visit = (node: any) => {
-    if (!node || typeof node !== 'object') return;
-    if (Array.isArray(node)) return node.forEach(visit);
-    const key = String(node.key ?? node.name ?? node.title ?? node.description ?? '').toLowerCase();
-    if (fcfKey(key) && Array.isArray(node.ranks)) {
-      for (const rank of node.ranks) {
-        if (rank.timeType === 1) continue;
-        const year = Number(rank.rank ?? rank.year);
-        const fcf = n(rank.value ?? rank.Value);
-        if (year && Number.isFinite(fcf)) points.push({ year, fcf });
-      }
-    }
-    const year = Number(node.year ?? node.Year ?? node.rank);
-    const rawFcf = node.fcf ?? node.FCF ?? node.fcl ?? node.freeCashFlow ?? node.free_cash_flow ?? node.fluxoCaixaLivre ?? node.fluxo_caixa_livre;
-    if (year && rawFcf !== undefined) points.push({ year, fcf: n(rawFcf) });
-    Object.values(node).forEach(visit);
-  };
-  visit(value);
-  return [...new Map(points.map(point => [point.year, point])).values()].sort((a, b) => a.year - b.year);
+export function parseAnnualFcfFromCashFlowResponse(json: any): AnnualFcfPoint[] {
+  const grid: any[] = json?.data?.grid ?? json?.grid ?? [];
+  const header = grid.find(row => row?.isHeader)?.columns ?? [];
+  const fcfRow = grid.find(row => String(row?.columns?.[0]?.value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('fluxo de caixa livre'));
+  if (!fcfRow) return [];
+
+  return (fcfRow.columns ?? [])
+    .slice(1)
+    .map((column: any, index: number) => ({ year: Number(header[index + 1]?.value), fcf: cashFlowMoney(column?.value) }))
+    .filter((point: AnnualFcfPoint) => point.year && Number.isFinite(point.fcf))
+    .sort((a: AnnualFcfPoint, b: AnnualFcfPoint) => a.year - b.year);
 }
 
 export async function fetchAnnualFcf(ticker: string): Promise<AnnualFcfPoint[]> {
   const t = normalizeTicker(ticker);
-  const body = new URLSearchParams();
-  body.append('codes[]', t.toLowerCase());
-  body.append('time', '10');
-  body.append('byQuarter', 'false');
-  body.append('futureData', 'false');
-  const json: any = await retry(() => getJson(`${BASE}/acao/indicatorhistoricallist`, { method: 'POST', body, cache: 'no-store', headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' } }));
-  const scoped = json?.data?.[t.toLowerCase()] ?? json?.data?.[t] ?? json;
-  return collectAnnualFcf(scoped);
+  const params = new URLSearchParams({ code: t.toLowerCase(), type: '0', futureData: 'false', 'range.min': '1900', 'range.max': String(new Date().getFullYear()) });
+  const json: any = await retry(() => getJson(`${BASE}/acao/getfluxocaixa?${params}`, { cache: 'no-store' }));
+  return parseAnnualFcfFromCashFlowResponse(json);
 }
 
 export const statusInvestFcfAdapter: FcfDataAdapter = { fetchAnnualFcf };
