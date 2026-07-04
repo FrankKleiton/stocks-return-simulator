@@ -20,6 +20,12 @@ describe('historical FCF valuation', () => {
         { year: 2023, fcf: 180 }
       ],
       normalizedFcf: 140,
+      coefficientOfVariation: 0.23,
+      volatility: 'medium',
+      warnings: [
+        { code: 'limited_history', message: 'valuation uses fewer than 10 annual FCF values' },
+        { code: 'volatile_fcf_history', message: 'selected FCF history is volatile' }
+      ],
       scenarios: {
         conservative: { fcfYield: 0.1, companyValue: 1400 },
         base: { fcfYield: 0.08, companyValue: 1750 },
@@ -47,6 +53,40 @@ describe('historical FCF valuation', () => {
       { year: 2023, fcf: 120 }
     ]);
     expect(valuation.normalizedFcf).toBe(75);
+  });
+
+  test('keeps valuation available with fewer than 10 positive normalized FCF years and warns about limited history', async () => {
+    const valuation = await getHistoricalFcfValuation('SHORT3', {
+      fetchAnnualFcf: async () => [
+        { year: 2021, fcf: 90 },
+        { year: 2022, fcf: 100 },
+        { year: 2023, fcf: 110 }
+      ]
+    });
+
+    expect(valuation.status).toBe('available');
+    expect(valuation.selectedAnnualFcf).toEqual([
+      { year: 2021, fcf: 90 },
+      { year: 2022, fcf: 100 },
+      { year: 2023, fcf: 110 }
+    ]);
+    expect(valuation.normalizedFcf).toBe(100);
+    expect(valuation.warnings).toContainEqual({ code: 'limited_history', message: 'valuation uses fewer than 10 annual FCF values' });
+  });
+
+  test('classifies volatility at PRD threshold boundaries', async () => {
+    await expect(getHistoricalFcfValuation('LOW3', { fetchAnnualFcf: async () => [{ year: 2022, fcf: 80 }, { year: 2023, fcf: 120 }] })).resolves.toMatchObject({ coefficientOfVariation: 0.2, volatility: 'low' });
+    await expect(getHistoricalFcfValuation('MED3', { fetchAnnualFcf: async () => [{ year: 2022, fcf: 50 }, { year: 2023, fcf: 150 }] })).resolves.toMatchObject({ coefficientOfVariation: 0.5, volatility: 'medium' });
+    await expect(getHistoricalFcfValuation('HIGH3', { fetchAnnualFcf: async () => [{ year: 2022, fcf: 0 }, { year: 2023, fcf: 200 }] })).resolves.toMatchObject({ coefficientOfVariation: 1, volatility: 'high' });
+    await expect(getHistoricalFcfValuation('VHIGH3', { fetchAnnualFcf: async () => [{ year: 2022, fcf: -10 }, { year: 2023, fcf: 210 }] })).resolves.toMatchObject({ coefficientOfVariation: 1.1, volatility: 'very_high' });
+  });
+
+  test('adds a volatility warning only when CV is greater than 20%', async () => {
+    const low = await getHistoricalFcfValuation('LOW3', { fetchAnnualFcf: async () => [{ year: 2022, fcf: 80 }, { year: 2023, fcf: 120 }] });
+    const medium = await getHistoricalFcfValuation('MED3', { fetchAnnualFcf: async () => [{ year: 2022, fcf: 50 }, { year: 2023, fcf: 150 }] });
+
+    expect(low.warnings).not.toContainEqual({ code: 'volatile_fcf_history', message: 'selected FCF history is volatile' });
+    expect(medium.warnings).toContainEqual({ code: 'volatile_fcf_history', message: 'selected FCF history is volatile' });
   });
 
   test('returns unavailable when FCF data cannot be fetched', async () => {

@@ -12,6 +12,8 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   </div>;
 }
 
+const volatilityLabel = (value: HistoricalFcfValuation['volatility']) => value.replace('_', ' ');
+
 export default function RecommendationTable({ data, onAdd, loading }: { data: Recommendation[]; loading: boolean; onAdd: (r: Recommendation) => void }) {
   const [sortBy, setSortBy] = useState<'quality' | 'valuation' | 'magic'>('quality');
   const [valuationByTicker, setValuationByTicker] = useState<Record<string, HistoricalFcfValuation>>({});
@@ -61,14 +63,16 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
             </Group>
 
             {valuationByTicker[stock.ticker] && <Card withBorder radius="md" p="sm" bg="dark.8">
-              {valuationByTicker[stock.ticker].status === 'available' ? <Stack gap={4}>
-                <Group gap="xs"><Badge color="matrix" variant="light">Historical FCF valuation</Badge><Text size="xs" c="dimmed">Latest {valuationByTicker[stock.ticker].selectedAnnualFcf.length} annual values</Text></Group>
+              {valuationByTicker[stock.ticker].status === 'available' ? <Stack gap="xs">
+                <Group gap="xs"><Badge color="matrix" variant="light">Historical FCF valuation</Badge><Badge color="yellow" variant="light">Volatility: {volatilityLabel(valuationByTicker[stock.ticker].volatility)}</Badge><Text size="xs" c="dimmed">Latest {valuationByTicker[stock.ticker].selectedAnnualFcf.length} annual values</Text></Group>
                 <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
                   <Metric label="Normalized FCF" value={brl(valuationByTicker[stock.ticker].normalizedFcf)} />
                   <Metric label="Conservative 10%" value={brl(valuationByTicker[stock.ticker].scenarios.conservative.companyValue)} />
                   <Metric label="Base 8%" value={brl(valuationByTicker[stock.ticker].scenarios.base.companyValue)} />
                   <Metric label="Optimistic 6%" value={brl(valuationByTicker[stock.ticker].scenarios.optimistic.companyValue)} />
                 </SimpleGrid>
+                <Text size="xs" c="dimmed">Selected FCF history: {valuationByTicker[stock.ticker].selectedAnnualFcf.map(point => `${point.year}: ${brl(point.fcf)}`).join(' • ')}</Text>
+                {valuationByTicker[stock.ticker].warnings.length > 0 && <Stack gap={2}>{valuationByTicker[stock.ticker].warnings.map(warning => <Text key={warning.code} size="xs" c="yellow.4">⚠ {warning.message}</Text>)}</Stack>}
               </Stack> : <Text size="sm" c="dimmed">Historical FCF valuation unavailable: {valuationByTicker[stock.ticker].message ?? 'positive annual FCF data is unavailable'}.</Text>}
             </Card>}
 
