@@ -62,7 +62,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
               </Group>
             </Group>
 
-            {valuationByTicker[stock.ticker] && <Card withBorder radius="md" p="sm" bg="dark.8">
+            {valuationByTicker[stock.ticker] && <Card withBorder radius="md" p="sm">
               {valuationByTicker[stock.ticker].status === 'available' ? <Stack gap="xs">
                 <Group gap="xs"><Badge color="matrix" variant="light">Historical FCF valuation</Badge><Badge color="yellow" variant="light">Volatility: {volatilityLabel(valuationByTicker[stock.ticker].volatility)}</Badge><Text size="xs" c="dimmed">Latest {valuationByTicker[stock.ticker].selectedAnnualFcf.length} annual values</Text></Group>
                 <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
