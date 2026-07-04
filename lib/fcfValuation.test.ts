@@ -48,4 +48,53 @@ describe('historical FCF valuation', () => {
     ]);
     expect(valuation.normalizedFcf).toBe(75);
   });
+
+  test('returns unavailable when FCF data cannot be fetched', async () => {
+    const valuation = await getHistoricalFcfValuation('FAIL3', {
+      fetchAnnualFcf: async () => { throw new Error('upstream timeout'); }
+    });
+
+    expect(valuation).toMatchObject({
+      ticker: 'FAIL3',
+      status: 'unavailable',
+      reason: 'could_not_fetch_free_cash_flow_data',
+      message: 'could not fetch free cash flow data',
+      selectedAnnualFcf: [],
+      normalizedFcf: 0
+    });
+  });
+
+  test('returns unavailable when normalized FCF is zero', async () => {
+    const valuation = await getHistoricalFcfValuation('ZERO3', {
+      fetchAnnualFcf: async () => [
+        { year: 2021, fcf: 100 },
+        { year: 2022, fcf: -100 }
+      ]
+    });
+
+    expect(valuation).toMatchObject({
+      ticker: 'ZERO3',
+      status: 'unavailable',
+      reason: 'normalized_fcf_is_negative_or_zero',
+      message: 'normalized FCF is negative or zero',
+      normalizedFcf: 0
+    });
+  });
+
+  test('returns unavailable when normalized FCF is negative', async () => {
+    const valuation = await getHistoricalFcfValuation('NEG3', {
+      fetchAnnualFcf: async () => [
+        { year: 2021, fcf: -80 },
+        { year: 2022, fcf: -40 }
+      ]
+    });
+
+    expect(valuation).toMatchObject({
+      ticker: 'NEG3',
+      status: 'unavailable',
+      reason: 'normalized_fcf_is_negative_or_zero',
+      message: 'normalized FCF is negative or zero',
+      normalizedFcf: -60
+    });
+  });
 });

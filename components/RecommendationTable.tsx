@@ -69,7 +69,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
                   <Metric label="Base 8%" value={brl(valuationByTicker[stock.ticker].scenarios.base.companyValue)} />
                   <Metric label="Optimistic 6%" value={brl(valuationByTicker[stock.ticker].scenarios.optimistic.companyValue)} />
                 </SimpleGrid>
-              </Stack> : <Text size="sm" c="dimmed">Historical FCF valuation unavailable for positive annual FCF data.</Text>}
+              </Stack> : <Text size="sm" c="dimmed">Historical FCF valuation unavailable: {valuationByTicker[stock.ticker].message ?? 'positive annual FCF data is unavailable'}.</Text>}
             </Card>}
 
             <SimpleGrid cols={{ base: 2, sm: 3, md: 4, xl: 6 }} spacing="sm">
