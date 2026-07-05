@@ -24,15 +24,30 @@ export function runSimulation(input: SimulationInput, data: Data): SimulationRes
   const tx: Transaction[] = [];
   const buy = (date: string, amount: number) => holdings.forEach(h => { const p = priceOnOrAfter(data[h.ticker]?.prices ?? [], date); if (p > 0) { const a = amount*h.allocation; const sh = a/p; h.shares += sh; h.cost += a; tx.push({ date, ticker: h.ticker, type: 'BUY', shares: sh, price: p, amount: a }); }});
   buy(input.startDate, input.initialInvestment);
-  const events = [input.startDate, input.endDate, ...monthsBetween(input.startDate,input.endDate), ...Object.values(data).flatMap(x => x.prices.map(p=>p.date))].filter(d => d>=input.startDate && d<=input.endDate).sort();
+  const divs = Object.values(data).flatMap(x => x.dividends).filter(d => d.date>=input.startDate && d.date<=input.endDate).sort((a,b)=>a.date.localeCompare(b.date));
+  const events = [input.startDate, input.endDate, ...monthsBetween(input.startDate,input.endDate), ...Object.values(data).flatMap(x => x.prices.map(p=>p.date)), ...divs.flatMap(d => [d.date, d.paymentDate])].filter(d => d>=input.startDate && d<=input.endDate).sort();
   const uniqueEvents = [...new Set(events)];
-  const divs = Object.values(data).flatMap(x => x.dividends).filter(d => d.paymentDate>=input.startDate && d.paymentDate<=input.endDate).sort((a,b)=>a.paymentDate.localeCompare(b.paymentDate));
   let divIdx = 0;
+  const pendingDividends: { dividend: DividendPoint; amount: number }[] = [];
   const series = [] as SimulationResult['series'];
   for (const date of uniqueEvents) {
     if (date.endsWith('-01') && date !== input.startDate && input.monthlyContribution > 0) { contributions += input.monthlyContribution; tx.push({ date, ticker: 'CASH', type: 'CONTRIBUTION', amount: input.monthlyContribution }); buy(date, input.monthlyContribution); }
-    while (divIdx < divs.length && divs[divIdx].paymentDate <= date) {
-      const d = divs[divIdx++]; const h = holdings.find(x => x.ticker === d.ticker); if (h && input.dividendMode !== 'ignore') { const amount = h.shares * d.value; h.dividends += amount; totalDividends += amount; tx.push({ date: d.paymentDate, ticker: d.ticker, type: 'DIVIDEND', amount }); if (input.dividendMode === 'reinvest') { const p = priceOnOrAfter(data[d.ticker].prices, d.paymentDate); if (p > 0) { const sh = amount/p; h.shares += sh; h.cost += amount; totalReinvested += amount; tx.push({ date: d.paymentDate, ticker: d.ticker, type: 'REINVEST', shares: sh, price: p, amount }); } else cash += amount; } else cash += amount; }
+    while (divIdx < divs.length && divs[divIdx].date <= date) {
+      const d = divs[divIdx++];
+      const h = holdings.find(x => x.ticker === d.ticker);
+      if (h && input.dividendMode !== 'ignore') {
+        const amount = h.shares * d.value;
+        if (amount > 0) pendingDividends.push({ dividend: d, amount });
+      }
+    }
+    for (let i = 0; i < pendingDividends.length;) {
+      const { dividend: d, amount } = pendingDividends[i];
+      if (d.paymentDate > date) { i++; continue; }
+      pendingDividends.splice(i, 1);
+      const h = holdings.find(x => x.ticker === d.ticker);
+      if (!h) continue;
+      h.dividends += amount; totalDividends += amount; tx.push({ date: d.paymentDate, ticker: d.ticker, type: 'DIVIDEND', amount });
+      if (input.dividendMode === 'reinvest') { const p = priceOnOrAfter(data[d.ticker].prices, d.paymentDate); if (p > 0) { const sh = amount/p; h.shares += sh; h.cost += amount; totalReinvested += amount; tx.push({ date: d.paymentDate, ticker: d.ticker, type: 'REINVEST', shares: sh, price: p, amount }); } else cash += amount; } else cash += amount;
     }
     const value = holdings.reduce((a,h)=>a+h.shares*priceOnOrBefore(data[h.ticker]?.prices ?? [], date),0) + cash;
     if (series.at(-1)?.date !== date) series.push({ date, value, contributions, cash });
