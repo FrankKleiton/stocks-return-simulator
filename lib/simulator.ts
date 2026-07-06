@@ -2,7 +2,7 @@ import { fetchDividends, fetchPrices } from './statusInvest';
 import type { DividendPoint, HoldingResult, PortfolioItem, PricePoint, SimulationInput, SimulationResult, TimePoint, Transaction } from './types';
 
 type MarketData = Record<string, { prices: PricePoint[]; dividends: DividendPoint[] }>;
-type SimHolding = PortfolioItem & { shares: number; cost: number; dividends: number };
+type SimHolding = PortfolioItem & { shares: number; cost: number; dividends: number; reinvestedDividends: number };
 type CashFlow = { date: string; amount: number };
 type PendingDividend = { dividend: DividendPoint; amount: number };
 
@@ -73,7 +73,7 @@ function timeWeightedAnnualReturn(series: TimePoint[], startDate: string, endDat
 }
 
 function createHoldings(holdings: PortfolioItem[]): SimHolding[] {
-  return normalizeAllocations(holdings).map(holding => ({ ...holding, shares: 0, cost: 0, dividends: 0 }));
+  return normalizeAllocations(holdings).map(holding => ({ ...holding, shares: 0, cost: 0, dividends: 0, reinvestedDividends: 0 }));
 }
 
 function buyHoldings(holdings: SimHolding[], data: MarketData, date: string, amount: number, transactions: Transaction[]) {
@@ -113,7 +113,7 @@ function valueHoldings(holdings: SimHolding[], data: MarketData, date: string) {
 function toHoldingResults(holdings: SimHolding[], data: MarketData, endDate: string): HoldingResult[] {
   return holdings.map(holding => {
     const value = holding.shares * priceOnOrBefore(data[holding.ticker]?.prices ?? [], endDate);
-    const returnPct = holding.cost ? ((value + holding.dividends - holding.cost) / holding.cost) * 100 : 0;
+    const returnPct = holding.cost ? ((value + holding.dividends - holding.reinvestedDividends - holding.cost) / holding.cost) * 100 : 0;
     return { ticker: holding.ticker, shares: holding.shares, value, cost: holding.cost, returnPct, dividends: holding.dividends };
   });
 }
@@ -140,6 +140,7 @@ export function simulatePortfolioTimeline(input: SimulationInput, data: MarketDa
   let cash = 0;
   let contributions = input.initialInvestment;
   let totalDividends = 0;
+  let totalReinvested = 0;
   let dividendIndex = 0;
   const pendingDividends: PendingDividend[] = [];
   const series: TimePoint[] = [];
@@ -179,8 +180,22 @@ export function simulatePortfolioTimeline(input: SimulationInput, data: MarketDa
 
       holding.dividends += amount;
       totalDividends += amount;
-      cash += amount;
       transactions.push({ date: dividend.paymentDate, ticker: dividend.ticker, type: 'DIVIDEND', amount });
+
+      if (input.dividendMode === 'reinvest') {
+        const price = priceOnOrBefore(data[dividend.ticker]?.prices ?? [], dividend.paymentDate);
+        if (price > 0) {
+          const shares = amount / price;
+          holding.shares += shares;
+          holding.reinvestedDividends += amount;
+          totalReinvested += amount;
+          transactions.push({ date: dividend.paymentDate, ticker: dividend.ticker, type: 'REINVEST', shares, price, amount });
+        } else {
+          cash += amount;
+        }
+      } else {
+        cash += amount;
+      }
     }
 
     const value = valueHoldings(holdings, data, date) + cash;
@@ -202,7 +217,7 @@ export function simulatePortfolioTimeline(input: SimulationInput, data: MarketDa
     moneyWeightedAnnualizedReturn,
     timeWeightedAnnualizedReturn,
     totalDividends,
-    totalDividendsReinvested: 0,
+    totalDividendsReinvested: totalReinvested,
     annualDividendIncome: dividendTransactions.filter(transaction => transaction.date.slice(0, 4) === input.endDate.slice(0, 4)).reduce((sum, transaction) => sum + transaction.amount, 0),
     cashBalance: cash,
     holdings: holdingResults,

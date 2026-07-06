@@ -61,16 +61,16 @@ describe('portfolio simulator returns', () => {
 });
 
 describe('portfolio simulator dividends', () => {
-  test('accumulates reinvest-mode dividends as cash without buying more shares', () => {
+  test('reinvests dividends into more shares of the paying ticker using the last available price', () => {
     const result = runSimulation({ ...input('2024-01-01'), dividendMode: 'reinvest' }, data);
 
     expect(result.totalDividends).toBe(100);
-    expect(result.totalDividendsReinvested).toBe(0);
-    expect(result.cashBalance).toBe(100);
+    expect(result.totalDividendsReinvested).toBe(100);
+    expect(result.cashBalance).toBe(0);
     expect(result.finalValue).toBe(1100);
-    expect(result.holdings[0].shares).toBe(100);
+    expect(result.holdings[0].shares).toBe(110);
     expect(result.holdings[0].returnPct).toBe(10);
-    expect(result.transactions.map(t => t.type)).not.toContain('REINVEST');
+    expect(result.transactions).toContainEqual({ date: '2024-02-15', ticker: 'TEST3', type: 'REINVEST', shares: 10, price: 10, amount: 100 });
   });
 
   test('does not pay dividends for shares bought after the dividend eligibility date', () => {

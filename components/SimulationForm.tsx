@@ -6,7 +6,7 @@ import type { DividendMode, PortfolioItem, SimulationInput, SimulationResult } f
 const dividendModeOptions = [
   { value: 'ignore', label: 'Ignore dividends' },
   { value: 'cash', label: 'Receive as cash' },
-  { value: 'reinvest', label: 'Accumulate as cash' }
+  { value: 'reinvest', label: 'Automatically reinvest' }
 ];
 
 function simulationInputFromForm(form: FormData, holdings: PortfolioItem[]): SimulationInput {

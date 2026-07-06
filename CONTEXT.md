@@ -18,7 +18,7 @@ StatusInvest dividend `date` is treated as the eligibility/ex-date. StatusInvest
 
 ## Dividend reinvestment approximation
 
-For simple educational approximation, reinvested dividends accumulate as cash rather than immediately buying the paying ticker. Cash can be deployed at contribution events or another explicit portfolio purchase event.
+For simple educational approximation, reinvested dividends buy more shares of the same ticker that paid the dividend on the payment date. The simulator uses the last available market price on or before the payment date.
 
 ## Price selection
 
