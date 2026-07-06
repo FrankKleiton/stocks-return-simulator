@@ -24,16 +24,10 @@ export async function scoreTicker(base: Awaited<ReturnType<typeof fetchStockList
   const avgDebt = avg(debts.length ? debts : [base.debtEquity]);
   const earningsYield = base.evEbit > 0 ? 100 / base.evEbit : base.pL > 0 ? 100 / base.pL : 0;
 
-  // Greenblatt-inspired valuation leg: cheaper earnings yield is better.
-  // P/VP is a secondary Brazilian-market value check: lower current P/VP is better.
-  // DY, ROE and ROIC are directional: higher is better. Debt is penalized.
-  const earningsYieldScore = clamp(earningsYield * 2.2, 0, 22);
-  const pvpValuation = base.pVp > 0 ? clamp(12 - base.pVp * 2.4, 0, 12) : 0;
-  const peValuation = base.pL > 0 ? clamp(12 - base.pL * 0.6, 0, 12) : 0;
-  const dyValuation = base.dy > 0 ? clamp(base.dy * 1.1, 0, 10) : 0;
-  const profitabilitySupport = clamp(base.roe / 4, 0, 8) + clamp(base.roic / 5, 0, 8);
-  const leveragePenalty = clamp(Math.max(0, avgDebt) * 1.5, 0, 10);
-  const valuationScore = clamp(earningsYieldScore + pvpValuation + peValuation + dyValuation + profitabilitySupport - leveragePenalty, 0, 50) * 2;
+  // Valuation sorting is intentionally simple: cheaper P/E and higher ROE score better.
+  const peValuation = base.pL > 0 ? clamp(20 - base.pL, 0, 20) * 2.5 : 0;
+  const roeValuation = clamp(base.roe, 0, 25) * 2;
+  const valuationScore = clamp(peValuation + roeValuation, 0, 100);
 
   const years = new Set(dividends.map(d => d.paymentDate.slice(0,4))).size;
   const earningsCagr = earnings.length > 1 ? cagr(earnings[0], earnings[earnings.length-1], earnings.length-1) : base.earningsCagr5;
@@ -75,15 +69,15 @@ function rankDescending<T>(items: T[], value: (item: T) => number): Map<T, numbe
 export async function getRecommendations(limit = 80): Promise<Recommendation[]> {
   const stocks = await fetchStockList();
   const liquid = stocks
-    .filter(s => s.price > 0 && s.dy >= 6)
+    .filter(s => s.price > 0 && s.roic > 0 && (s.evEbit > 0 || s.pL > 0))
     .sort((a,b)=>b.liquidity-a.liquidity)
     .slice(0, limit);
   const chunks: ScoredRecommendation[] = [];
   for (let i=0; i<liquid.length; i+=8) chunks.push(...await Promise.all(liquid.slice(i,i+8).map(scoreTicker)));
-  const eligible = chunks.filter(s => s.averageRoe >= 12);
+  const eligible = chunks;
 
   const roicRank = rankDescending(eligible, s => s.roic);
-  const earningsYieldRank = rankDescending(chunks, s => s.earningsYield);
+  const earningsYieldRank = rankDescending(eligible, s => s.earningsYield);
   const maxCombinedRank = Math.max(1, eligible.length * 2 - 2);
 
   return eligible.map((scored) => {

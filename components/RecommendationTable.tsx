@@ -16,9 +16,12 @@ const volatilityLabel = (value: HistoricalFcfValuation['volatility']) => value.r
 
 export default function RecommendationTable({ data, onAdd, loading }: { data: Recommendation[]; loading: boolean; onAdd: (r: Recommendation) => void }) {
   const [sortBy, setSortBy] = useState<'quality' | 'valuation' | 'magic'>('quality');
+  const [filterBy, setFilterBy] = useState<'all' | 'highDividendLowPe'>('all');
   const [valuationByTicker, setValuationByTicker] = useState<Record<string, HistoricalFcfValuation>>({});
   const [loadingValuation, setLoadingValuation] = useState<string>();
-  const sortedData = useMemo(() => [...data].sort((a, b) => sortBy === 'valuation' ? b.valuationScore - a.valuationScore : sortBy === 'magic' ? b.magicFormulaScore - a.magicFormulaScore : b.qualityScore - a.qualityScore), [data, sortBy]);
+  const sortedData = useMemo(() => data
+    .filter(stock => filterBy === 'highDividendLowPe' ? stock.averageDividendYield >= 6 && stock.pL > 0 && stock.pL <= 10 : true)
+    .sort((a, b) => sortBy === 'valuation' ? b.valuationScore - a.valuationScore : sortBy === 'magic' ? b.magicFormulaScore - a.magicFormulaScore : b.qualityScore - a.qualityScore), [data, filterBy, sortBy]);
 
   const analyzeFcf = async (ticker: string) => {
     setLoadingValuation(ticker);
@@ -35,10 +38,11 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
       <Group justify="space-between" align="flex-start" gap="sm">
         <div>
           <Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Quality recommendations</Title>
-          <Text size="sm" c="dimmed">A Greenblatt-inspired ranking using ROIC + earnings yield, adjusted for Brazilian valuation, dividends and stability.</Text>
+          <Text size="sm" c="dimmed">A Greenblatt-inspired ranking using ROIC + earnings yield, with optional dividend and P/E screening.</Text>
         </div>
         <Group gap="xs">
           {loading && <Text size="sm" c="cyber.3">Analyzing…</Text>}
+          <Select w={{ base: 190, sm: 230 }} value={filterBy} onChange={(v) => setFilterBy((v ?? 'all') as 'all' | 'highDividendLowPe')} data={[{ value: 'all', label: 'Filter: All Magic Formula' }, { value: 'highDividendLowPe', label: 'Filter: High DY + Low P/E' }]}/>
           <Select w={{ base: 170, sm: 210 }} value={sortBy} onChange={(v) => setSortBy((v ?? 'quality') as 'quality' | 'valuation' | 'magic')} data={[{ value: 'quality', label: 'Sort: Quality' }, { value: 'magic', label: 'Sort: Magic Formula' }, { value: 'valuation', label: 'Sort: Valuation' }]}/>
         </Group>
       </Group>
