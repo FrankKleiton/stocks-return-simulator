@@ -50,6 +50,6 @@ export interface Transaction { date: string; ticker: string; type: 'BUY' | 'DIVI
 export interface HoldingResult { ticker: string; shares: number; value: number; cost: number; returnPct: number; dividends: number }
 export interface TimePoint { date: string; value: number; contributions: number; cash: number }
 export interface SimulationResult {
-  finalValue: number; totalReturn: number; cagr: number; totalDividends: number; totalDividendsReinvested: number; annualDividendIncome: number; cashBalance: number;
+  finalValue: number; totalReturn: number; cagr: number; moneyWeightedAnnualizedReturn: number; timeWeightedAnnualizedReturn: number; totalDividends: number; totalDividendsReinvested: number; annualDividendIncome: number; cashBalance: number;
   holdings: HoldingResult[]; transactions: Transaction[]; dividends: DividendPoint[]; series: TimePoint[]; allocation: { ticker: string; value: number }[]; dividendsByYear: { year: string; amount: number }[]; best?: HoldingResult; worst?: HoldingResult;
 }

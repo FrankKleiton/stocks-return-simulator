@@ -23,6 +23,18 @@ const moneyWeightedAnnualReturn = (flows: { date: string; amount: number }[]) =>
   }
   return ((low + high) / 2) * 100;
 };
+const timeWeightedAnnualReturn = (series: SimulationResult['series'], startDate: string, endDate: string) => {
+  if (series.length < 2) return 0;
+  let compounded = 1;
+  for (let i = 1; i < series.length; i++) {
+    const previous = series[i - 1];
+    const current = series[i];
+    const externalFlow = current.contributions - previous.contributions;
+    if (previous.value > 0) compounded *= (current.value - externalFlow) / previous.value;
+  }
+  const years = Math.max(1 / 365, yearsBetween(startDate, endDate));
+  return (compounded ** (1 / years) - 1) * 100;
+};
 
 export async function loadSimulationData(input: SimulationInput): Promise<Data> {
   const tickers = [...new Set(input.holdings.map(h => h.ticker.toUpperCase()))];
@@ -30,7 +42,7 @@ export async function loadSimulationData(input: SimulationInput): Promise<Data> 
   return Object.fromEntries(entries);
 }
 
-export function runSimulation(input: SimulationInput, data: Data): SimulationResult {
+export function simulatePortfolioTimeline(input: SimulationInput, data: Data): SimulationResult {
   const holdings = normalizeAlloc(input.holdings).map(h => ({ ...h, shares: 0, cost: 0, dividends: 0, reinvestedDividends: 0 }));
   let cash = 0, contributions = input.initialInvestment, totalDividends = 0, totalReinvested = 0;
   const tx: Transaction[] = [];
@@ -60,7 +72,7 @@ export function runSimulation(input: SimulationInput, data: Data): SimulationRes
       const h = holdings.find(x => x.ticker === d.ticker);
       if (!h) continue;
       h.dividends += amount; totalDividends += amount; tx.push({ date: d.paymentDate, ticker: d.ticker, type: 'DIVIDEND', amount });
-      if (input.dividendMode === 'reinvest') { const p = priceOnOrAfter(data[d.ticker].prices, d.paymentDate); if (p > 0) { const sh = amount/p; h.shares += sh; h.reinvestedDividends += amount; totalReinvested += amount; tx.push({ date: d.paymentDate, ticker: d.ticker, type: 'REINVEST', shares: sh, price: p, amount }); } else cash += amount; } else cash += amount;
+      cash += amount;
     }
     const value = holdings.reduce((a,h)=>a+h.shares*priceOnOrBefore(data[h.ticker]?.prices ?? [], date),0) + cash;
     if (series.at(-1)?.date !== date) series.push({ date, value, contributions, cash });
@@ -70,8 +82,10 @@ export function runSimulation(input: SimulationInput, data: Data): SimulationRes
   const dividendTx = tx.filter(t => t.type === 'DIVIDEND');
   const dividendsByYear = Object.entries(dividendTx.reduce<Record<string,number>>((acc,t)=>{ const y=t.date.slice(0,4); acc[y]=(acc[y]||0)+t.amount; return acc; },{})).map(([year,amount])=>({year, amount}));
   const totalReturn = ((finalValue-contributions)/contributions)*100;
-  const annualizedReturn = moneyWeightedAnnualReturn([...externalFlows, { date: input.endDate, amount: finalValue }]);
-  return { finalValue, totalReturn, cagr: annualizedReturn, totalDividends, totalDividendsReinvested: totalReinvested, annualDividendIncome: dividendTx.filter(t=>t.date.slice(0,4)===input.endDate.slice(0,4)).reduce((a,t)=>a+t.amount,0), cashBalance: cash, holdings: holdingResults, transactions: tx, dividends: divs, series, allocation: holdingResults.map(h=>({ ticker: h.ticker, value: h.value })), dividendsByYear, best: [...holdingResults].sort((a,b)=>b.returnPct-a.returnPct)[0], worst: [...holdingResults].sort((a,b)=>a.returnPct-b.returnPct)[0] };
+  const moneyWeightedAnnualizedReturn = moneyWeightedAnnualReturn([...externalFlows, { date: input.endDate, amount: finalValue }]);
+  const timeWeightedAnnualizedReturn = timeWeightedAnnualReturn(series, input.startDate, input.endDate);
+  return { finalValue, totalReturn, cagr: moneyWeightedAnnualizedReturn, moneyWeightedAnnualizedReturn, timeWeightedAnnualizedReturn, totalDividends, totalDividendsReinvested: totalReinvested, annualDividendIncome: dividendTx.filter(t=>t.date.slice(0,4)===input.endDate.slice(0,4)).reduce((a,t)=>a+t.amount,0), cashBalance: cash, holdings: holdingResults, transactions: tx, dividends: divs, series, allocation: holdingResults.map(h=>({ ticker: h.ticker, value: h.value })), dividendsByYear, best: [...holdingResults].sort((a,b)=>b.returnPct-a.returnPct)[0], worst: [...holdingResults].sort((a,b)=>a.returnPct-b.returnPct)[0] };
 }
 
-export async function simulate(input: SimulationInput) { return runSimulation(input, await loadSimulationData(input)); }
+export function runSimulation(input: SimulationInput, data: Data): SimulationResult { return simulatePortfolioTimeline(input, data); }
+export async function simulate(input: SimulationInput) { return simulatePortfolioTimeline(input, await loadSimulationData(input)); }

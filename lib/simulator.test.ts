@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { runSimulation } from './simulator';
+import { runSimulation, simulatePortfolioTimeline } from './simulator';
 import type { SimulationInput } from './types';
 
 const input = (startDate: string): SimulationInput => ({
@@ -35,7 +35,9 @@ describe('portfolio simulator returns', () => {
     });
 
     expect(result.totalReturn).toBe(10);
-    expect(result.cagr).toBeCloseTo(10, 1);
+    expect(result.moneyWeightedAnnualizedReturn).toBeCloseTo(10, 1);
+    expect(result.timeWeightedAnnualizedReturn).toBeCloseTo(10, 1);
+    expect(result.cagr).toBeCloseTo(result.moneyWeightedAnnualizedReturn, 8);
   });
 
   test('does not dilute annualized return by treating every monthly contribution as invested from the start date', () => {
@@ -46,18 +48,29 @@ describe('portfolio simulator returns', () => {
     });
     const result = runSimulation({ ...input('2024-01-01'), endDate: '2025-01-01', monthlyContribution: 1000, dividendMode: 'ignore' }, { TEST3: { prices, dividends: [] } });
 
-    expect(result.cagr).toBeCloseTo(10, 1);
+    expect(result.moneyWeightedAnnualizedReturn).toBeCloseTo(10, 1);
+    expect(result.timeWeightedAnnualizedReturn).toBeCloseTo(10, 1);
+  });
+
+  test('exposes simulatePortfolioTimeline as the portfolio timeline interface', () => {
+    const result = simulatePortfolioTimeline(input('2024-01-01'), data);
+
+    expect(result.finalValue).toBe(1100);
+    expect(result.moneyWeightedAnnualizedReturn).toBe(result.cagr);
   });
 });
 
 describe('portfolio simulator dividends', () => {
-  test('reports reinvested dividend holding return without double-counting the dividend as cash income', () => {
+  test('accumulates reinvest-mode dividends as cash without buying more shares', () => {
     const result = runSimulation({ ...input('2024-01-01'), dividendMode: 'reinvest' }, data);
 
     expect(result.totalDividends).toBe(100);
-    expect(result.totalDividendsReinvested).toBe(100);
+    expect(result.totalDividendsReinvested).toBe(0);
+    expect(result.cashBalance).toBe(100);
     expect(result.finalValue).toBe(1100);
+    expect(result.holdings[0].shares).toBe(100);
     expect(result.holdings[0].returnPct).toBe(10);
+    expect(result.transactions.map(t => t.type)).not.toContain('REINVEST');
   });
 
   test('does not pay dividends for shares bought after the dividend eligibility date', () => {
