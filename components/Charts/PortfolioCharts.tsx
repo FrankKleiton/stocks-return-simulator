@@ -32,7 +32,7 @@ export default function PortfolioCharts({ result }: { result: SimulationResult }
   };
   const allocationData = {
     labels: result.allocation.map(a => a.ticker),
-    datasets: [{ data: result.allocation.map(a => a.value), backgroundColor: result.allocation.map((_, i) => colors[i % colors.length]), borderColor: 'rgba(15, 23, 42, 0.35)', borderWidth: 0.5 }]
+    datasets: [{ data: result.allocation.map(a => a.value), backgroundColor: result.allocation.map((_, i) => colors[i % colors.length]), borderColor: '#22d3ee', borderWidth: 1.5 }]
   };
 
   return <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
