@@ -15,13 +15,11 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 const volatilityLabel = (value: HistoricalFcfValuation['volatility']) => value.replace('_', ' ');
 
 export default function RecommendationTable({ data, onAdd, loading }: { data: Recommendation[]; loading: boolean; onAdd: (r: Recommendation) => void }) {
-  const [sortBy, setSortBy] = useState<'quality' | 'valuation' | 'magic'>('quality');
   const [filterBy, setFilterBy] = useState<'all' | 'highDividendLowPe'>('all');
   const [valuationByTicker, setValuationByTicker] = useState<Record<string, HistoricalFcfValuation>>({});
   const [loadingValuation, setLoadingValuation] = useState<string>();
-  const sortedData = useMemo(() => data
-    .filter(stock => filterBy === 'highDividendLowPe' ? stock.averageDividendYield >= 6 && stock.pL > 0 && stock.pL <= 10 : true)
-    .sort((a, b) => sortBy === 'valuation' ? b.valuationScore - a.valuationScore : sortBy === 'magic' ? b.magicFormulaScore - a.magicFormulaScore : b.qualityScore - a.qualityScore), [data, filterBy, sortBy]);
+  const filteredData = useMemo(() => data
+    .filter(stock => filterBy === 'highDividendLowPe' ? stock.averageDividendYield >= 6 && stock.pL > 0 && stock.pL <= 10 : true), [data, filterBy]);
 
   const analyzeFcf = async (ticker: string) => {
     setLoadingValuation(ticker);
@@ -43,13 +41,12 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
         <Group gap="xs">
           {loading && <Text size="sm" c="cyber.3">Analyzing…</Text>}
           <Select w={{ base: 190, sm: 230 }} value={filterBy} onChange={(v) => setFilterBy((v ?? 'all') as 'all' | 'highDividendLowPe')} data={[{ value: 'all', label: 'Filter: All Magic Formula' }, { value: 'highDividendLowPe', label: 'Filter: High DY + Low P/E' }]}/>
-          <Select w={{ base: 170, sm: 210 }} value={sortBy} onChange={(v) => setSortBy((v ?? 'quality') as 'quality' | 'valuation' | 'magic')} data={[{ value: 'quality', label: 'Sort: Quality' }, { value: 'magic', label: 'Sort: Magic Formula' }, { value: 'valuation', label: 'Sort: Valuation' }]}/>
         </Group>
       </Group>
 
       <ScrollArea h={{ base: 560, md: 720 }} offsetScrollbars type="auto">
         <Stack gap="sm" pr="sm">
-        {sortedData.map((stock, index) => <Card key={stock.ticker} withBorder radius="lg" p="md">
+        {filteredData.map((stock, index) => <Card key={stock.ticker} withBorder radius="lg" p="md">
           <Stack gap="sm">
             <Group justify="space-between" align="flex-start" wrap="nowrap">
               <Group gap="sm" align="flex-start">
@@ -95,7 +92,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
             </SimpleGrid>
           </Stack>
         </Card>)}
-        {!loading && !sortedData.length && <Text c="dimmed" ta="center" py="xl">No recommendations available.</Text>}
+        {!loading && !filteredData.length && <Text c="dimmed" ta="center" py="xl">No recommendations available.</Text>}
         </Stack>
       </ScrollArea>
     </Stack>
