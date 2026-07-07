@@ -22,7 +22,7 @@ export async function scoreTicker(base: Awaited<ReturnType<typeof fetchStockList
   const averageRoic = avg(roics.length ? roics : [base.roic]);
   const avgPVp = avg(pvps.length ? pvps : [base.pVp]) || 0;
   const avgDebt = avg(debts.length ? debts : [base.debtEquity]);
-  const earningsYield = base.evEbit > 0 ? 100 / base.evEbit : base.pL > 0 ? 100 / base.pL : 0;
+  const earningsYield = base.pL > 0 ? (1 / base.pL) * 100 : 0;
 
   // Valuation sorting is intentionally simple: cheaper P/E and higher ROE score better.
   const peValuation = base.pL > 0 ? clamp(20 - base.pL, 0, 20) * 2.5 : 0;

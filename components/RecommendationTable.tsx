@@ -15,11 +15,25 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 const volatilityLabel = (value: HistoricalFcfValuation['volatility']) => value.replace('_', ' ');
 
 export default function RecommendationTable({ data, onAdd, loading }: { data: Recommendation[]; loading: boolean; onAdd: (r: Recommendation) => void }) {
-  const [filterBy, setFilterBy] = useState<'all' | 'highDividendLowPe'>('all');
+  const [sortBy, setSortBy] = useState<'none' | 'valueIncome'>('none');
   const [valuationByTicker, setValuationByTicker] = useState<Record<string, HistoricalFcfValuation>>({});
   const [loadingValuation, setLoadingValuation] = useState<string>();
-  const filteredData = useMemo(() => data
-    .filter(stock => filterBy === 'highDividendLowPe' ? stock.averageDividendYield >= 6 && stock.pL > 0 && stock.pL <= 10 : true), [data, filterBy]);
+  const displayedData = useMemo(() => {
+    if (sortBy !== 'valueIncome') return data;
+
+    const clampScore = (value: number) => Math.max(0, Math.min(100, value));
+    const pvpBelowAverageScore = (stock: Recommendation) =>
+      stock.pVp > 0 && stock.averagePVp > 0 && stock.pVp < stock.averagePVp
+        ? clampScore(((stock.averagePVp - stock.pVp) / stock.averagePVp) * 100)
+        : 0;
+    const valueIncomeScore = (stock: Recommendation) =>
+      clampScore((stock.earningsYield / 15) * 100) * 0.22 +
+      clampScore((stock.averageRoe / 25) * 100) * 0.44 +
+      clampScore((stock.averageDividendYield / 10) * 100) * 0.22 +
+      pvpBelowAverageScore(stock) * 0.12;
+
+    return [...data].sort((a, b) => valueIncomeScore(b) - valueIncomeScore(a));
+  }, [data, sortBy]);
 
   const analyzeFcf = async (ticker: string) => {
     setLoadingValuation(ticker);
@@ -40,13 +54,13 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
         </div>
         <Group gap="xs">
           {loading && <Text size="sm" c="cyber.3">Analyzing…</Text>}
-          <Select w={{ base: 190, sm: 230 }} value={filterBy} onChange={(v) => setFilterBy((v ?? 'all') as 'all' | 'highDividendLowPe')} data={[{ value: 'all', label: 'Filter: All Magic Formula' }, { value: 'highDividendLowPe', label: 'Filter: High DY + Low P/E' }]}/>
+          <Select w={{ base: 230, sm: 360 }} value={sortBy} onChange={(v) => setSortBy((v ?? 'none') as 'none' | 'valueIncome')} data={[{ value: 'none', label: 'No sort' }, { value: 'valueIncome', label: 'Sort: Earn. Yield + Avg ROE + Avg DY + P/VP below avg' }]}/>
         </Group>
       </Group>
 
       <ScrollArea h={{ base: 560, md: 720 }} offsetScrollbars type="auto">
         <Stack gap="sm" pr="sm">
-        {filteredData.map((stock, index) => <Card key={stock.ticker} withBorder radius="lg" p="md">
+        {displayedData.map((stock, index) => <Card key={stock.ticker} withBorder radius="lg" p="md">
           <Stack gap="sm">
             <Group justify="space-between" align="flex-start" wrap="nowrap">
               <Group gap="sm" align="flex-start">
@@ -92,7 +106,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
             </SimpleGrid>
           </Stack>
         </Card>)}
-        {!loading && !filteredData.length && <Text c="dimmed" ta="center" py="xl">No recommendations available.</Text>}
+        {!loading && !displayedData.length && <Text c="dimmed" ta="center" py="xl">No recommendations available.</Text>}
         </Stack>
       </ScrollArea>
     </Stack>
