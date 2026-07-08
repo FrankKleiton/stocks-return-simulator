@@ -16,10 +16,18 @@ const volatilityLabel = (value: HistoricalFcfValuation['volatility']) => value.r
 
 export default function RecommendationTable({ data, onAdd, loading }: { data: Recommendation[]; loading: boolean; onAdd: (r: Recommendation) => void }) {
   const [sortBy, setSortBy] = useState<'none' | 'valueIncome'>('none');
+  const [sectorFilter, setSectorFilter] = useState('all');
   const [valuationByTicker, setValuationByTicker] = useState<Record<string, HistoricalFcfValuation>>({});
   const [loadingValuation, setLoadingValuation] = useState<string>();
+  const sectorOptions = useMemo(() => [
+    { value: 'all', label: 'All sectors' },
+    ...[...new Set(data.map(stock => stock.sector || 'N/D'))]
+      .sort((a, b) => a.localeCompare(b))
+      .map(sector => ({ value: sector, label: sector }))
+  ], [data]);
   const displayedData = useMemo(() => {
-    if (sortBy !== 'valueIncome') return data;
+    const sectorData = sectorFilter === 'all' ? data : data.filter(stock => (stock.sector || 'N/D') === sectorFilter);
+    if (sortBy !== 'valueIncome') return sectorData;
 
     const clampScore = (value: number) => Math.max(0, Math.min(100, value));
     const pvpBelowAverageScore = (stock: Recommendation) =>
@@ -32,8 +40,8 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
       clampScore((stock.averageDividendYield / 10) * 100) * 0.22 +
       pvpBelowAverageScore(stock) * 0.12;
 
-    return [...data].sort((a, b) => valueIncomeScore(b) - valueIncomeScore(a));
-  }, [data, sortBy]);
+    return [...sectorData].sort((a, b) => valueIncomeScore(b) - valueIncomeScore(a));
+  }, [data, sectorFilter, sortBy]);
 
   const analyzeFcf = async (ticker: string) => {
     setLoadingValuation(ticker);
@@ -54,6 +62,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
         </div>
         <Group gap="xs">
           {loading && <Text size="sm" c="cyber.3">Analyzing…</Text>}
+          <Select searchable w={{ base: 230, sm: 260 }} value={sectorFilter} onChange={(v) => setSectorFilter(v ?? 'all')} data={sectorOptions}/>
           <Select w={{ base: 230, sm: 360 }} value={sortBy} onChange={(v) => setSortBy((v ?? 'none') as 'none' | 'valueIncome')} data={[{ value: 'none', label: 'No sort' }, { value: 'valueIncome', label: 'Sort: Earn. Yield + Avg ROE + Avg DY + P/VP below avg' }]}/>
         </Group>
       </Group>
