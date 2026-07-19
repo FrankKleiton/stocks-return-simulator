@@ -5,6 +5,7 @@ import RecommendationTable from '@/components/RecommendationTable';
 import PortfolioBuilder from '@/components/PortfolioBuilder';
 import SimulationForm from '@/components/SimulationForm';
 import ResultsDashboard from '@/components/ResultsDashboard';
+import WalletComparison from '@/components/WalletComparison';
 import ColorSchemeToggle from '@/components/ColorSchemeToggle';
 import { BarChart3, LineChart, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
 import type { PortfolioItem, Recommendation, SimulationResult } from '@/lib/types';
@@ -99,6 +100,7 @@ export default function Home() {
         <Box id="portfolio-builder"><PortfolioBuilder items={portfolio} setItems={setPortfolio}/></Box>
         <SimulationForm holdings={portfolio} onResult={setResult}/>
         <ResultsDashboard result={result}/>
+        <WalletComparison data={recommendations} loading={loading}/>
         <Box id="recommendations"><RecommendationTable data={recommendations} loading={loading} onAdd={add}/></Box>
       </Stack>
       <Text pb="xl" size="xs" c="dimmed">Educational analytics only. Recommendations are model suggestions, not investment advice.</Text>
