@@ -76,16 +76,16 @@ export async function getRecommendations(limit = 80): Promise<Recommendation[]> 
   for (let i=0; i<liquid.length; i+=8) chunks.push(...await Promise.all(liquid.slice(i,i+8).map(scoreTicker)));
   const eligible = chunks;
 
-  const roicRank = rankDescending(eligible, s => s.roic);
+  const roeRank = rankDescending(eligible, s => s.roe);
   const earningsYieldRank = rankDescending(eligible, s => s.earningsYield);
   const maxCombinedRank = Math.max(1, eligible.length * 2 - 2);
 
   return eligible.map((scored) => {
-    const combinedRank = (roicRank.get(scored) ?? eligible.length) + (earningsYieldRank.get(scored) ?? eligible.length);
+    const combinedRank = (roeRank.get(scored) ?? eligible.length) + (earningsYieldRank.get(scored) ?? eligible.length);
     const magicFormulaScore = clamp(100 - ((combinedRank - 2) / maxCombinedRank) * 100, 0, 100);
 
     // Variant of Joel Greenblatt's Magic Formula for Brazilian stocks:
-    // 55% combined rank of ROIC + earnings yield, 25% long-term profitability,
+    // 55% combined rank of ROE + earnings yield (cheapest P/E), 25% long-term profitability,
     // 20% financial/revenue stability. Dividend years are informational only.
     const qualityScore = clamp(magicFormulaScore * 0.55 + scored._profitabilityScore * 0.25 + scored._stabilityScore * 0.20, 0, 100);
     const { _profitabilityScore, _stabilityScore, ...stock } = scored;

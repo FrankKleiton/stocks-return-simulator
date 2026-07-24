@@ -15,7 +15,7 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 const volatilityLabel = (value: HistoricalFcfValuation['volatility']) => value.replace('_', ' ');
 
 export default function RecommendationTable({ data, onAdd, loading }: { data: Recommendation[]; loading: boolean; onAdd: (r: Recommendation) => void }) {
-  const [sortBy, setSortBy] = useState<'none' | 'valueIncome'>('none');
+  const [sortBy, setSortBy] = useState<'none' | 'quality' | 'magicFormula' | 'valueIncome'>('none');
   const [sectorFilter, setSectorFilter] = useState('all');
   const [valuationByTicker, setValuationByTicker] = useState<Record<string, HistoricalFcfValuation>>({});
   const [loadingValuation, setLoadingValuation] = useState<string>();
@@ -29,6 +29,8 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
   ], [data]);
   const displayedData = useMemo(() => {
     const sectorData = sectorFilter === 'all' ? data : data.filter(stock => (stock.sector || 'N/D') === sectorFilter);
+    if (sortBy === 'quality') return [...sectorData].sort((a, b) => b.qualityScore - a.qualityScore);
+    if (sortBy === 'magicFormula') return [...sectorData].sort((a, b) => b.magicFormulaScore - a.magicFormulaScore);
     if (sortBy !== 'valueIncome') return sectorData;
 
     const clampScore = (value: number) => Math.max(0, Math.min(100, value));
@@ -75,7 +77,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
         <Group gap="xs">
           {loading && <Text size="sm" c="cyber.3">Analyzing…</Text>}
           <Select searchable w={{ base: 230, sm: 260 }} value={sectorFilter} onChange={(v) => setSectorFilter(v ?? 'all')} data={sectorOptions}/>
-          <Select w={{ base: 230, sm: 360 }} value={sortBy} onChange={(v) => setSortBy((v ?? 'none') as 'none' | 'valueIncome')} data={[{ value: 'none', label: 'No sort' }, { value: 'valueIncome', label: 'Sort: Earn. Yield + Avg ROE + Avg DY + P/VP below avg' }]}/>
+          <Select w={{ base: 230, sm: 360 }} value={sortBy} onChange={(v) => setSortBy((v ?? 'none') as 'none' | 'quality' | 'magicFormula' | 'valueIncome')} data={[{ value: 'none', label: 'No sort' }, { value: 'quality', label: 'Sort: Quality score' }, { value: 'magicFormula', label: 'Sort: Magic Formula' }, { value: 'valueIncome', label: 'Sort: Earn. Yield + Avg ROE + Avg DY + P/VP below avg' }]}/>
         </Group>
       </Group>
 
@@ -87,7 +89,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
               <Group gap="sm" align="flex-start">
                 <Badge size="lg" color="dark" variant="filled">#{index + 1}</Badge>
                 <div>
-                  <Group gap="xs"><Title order={3} fz="lg">{stock.ticker}</Title><Badge color="cyber" variant="light">Q {stock.qualityScore}</Badge><Badge color="matrix" variant="light">MF {stock.magicFormulaScore}</Badge><Badge color="plasma" variant="light">V {stock.valuationScore}</Badge></Group>
+                  <Title order={3} fz="lg">{stock.ticker}</Title>
                   <Text size="sm" c="dimmed" lineClamp={1}>{stock.companyName || 'Company name unavailable'}</Text>
                   <Text size="xs" c="dimmed">{stock.industry}</Text>
                 </div>
