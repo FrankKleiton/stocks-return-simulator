@@ -97,8 +97,8 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
         <Stack gap="sm" pr="sm">
         {displayedData.map((stock, index) => <Card key={stock.ticker} withBorder radius="lg" p="md">
           <Stack gap="sm">
-            <Group justify="space-between" align="flex-start" wrap="nowrap">
-              <Group gap="sm" align="flex-start">
+            <Group justify="space-between" align="flex-start" gap="sm">
+              <Group gap="sm" align="flex-start" wrap="nowrap">
                 <Badge size="lg" color="dark" variant="filled">#{index + 1}</Badge>
                 <div>
                   <Title order={3} fz="lg">{stock.ticker}</Title>
@@ -106,7 +106,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
                   <Text size="xs" c="dimmed">{stock.industry}</Text>
                 </div>
               </Group>
-              <Group gap="xs" wrap="nowrap">
+              <Group gap="xs">
                 <Button size="xs" variant="light" loading={loadingValuation === stock.ticker} onClick={() => analyzeFcf(stock.ticker)}>Analisar FCL</Button>
                 <Button size="xs" variant="light" loading={loadingEarningsValuation === stock.ticker} onClick={() => analyzeEarnings(stock.ticker)}>Analisar Lucros</Button>
                 <Button size="xs" onClick={() => onAdd(stock)}>Adicionar</Button>
