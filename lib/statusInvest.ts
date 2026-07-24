@@ -1,5 +1,5 @@
 import { cached, retry } from './cache';
-import type { AnnualFcfPoint, FcfDataAdapter } from './fcfValuation';
+import type { AnnualEarningsPoint, AnnualFcfPoint, EarningsDataAdapter, FcfDataAdapter } from './fcfValuation';
 import type { DividendPoint, IndicatorPoint, PricePoint, StockSummary } from './types';
 
 const BASE = 'https://statusinvest.com.br';
@@ -112,6 +112,28 @@ export async function fetchAnnualFcf(ticker: string): Promise<AnnualFcfPoint[]> 
 }
 
 export const statusInvestFcfAdapter: FcfDataAdapter = { fetchAnnualFcf };
+
+export function parseAnnualEarningsFromDreResponse(json: any): AnnualEarningsPoint[] {
+  const grid: any[] = json?.data?.grid ?? json?.grid ?? [];
+  const header = grid.find(row => row?.isHeader)?.columns ?? [];
+  const earningsRow = grid.find(row => String(row?.columns?.[0]?.value ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes('lucro liquido'));
+  if (!earningsRow) return [];
+
+  return (earningsRow.columns ?? [])
+    .slice(1)
+    .map((column: any, index: number) => ({ year: Number(header[index + 1]?.value), earnings: cashFlowMoney(column?.value) }))
+    .filter((point: AnnualEarningsPoint) => point.year && Number.isFinite(point.earnings))
+    .sort((a: AnnualEarningsPoint, b: AnnualEarningsPoint) => a.year - b.year);
+}
+
+export async function fetchAnnualEarnings(ticker: string): Promise<AnnualEarningsPoint[]> {
+  const t = normalizeTicker(ticker);
+  const params = new URLSearchParams({ code: t.toLowerCase(), type: '0', futureData: 'false', 'range.min': '1900', 'range.max': String(new Date().getFullYear()) });
+  const json: any = await retry(() => getJson(`${BASE}/acao/getdre?${params}`, { cache: 'no-store' }));
+  return parseAnnualEarningsFromDreResponse(json);
+}
+
+export const statusInvestEarningsAdapter: EarningsDataAdapter = { fetchAnnualEarnings };
 
 export async function fetchDividends(ticker: string): Promise<DividendPoint[]> {
   const t = normalizeTicker(ticker);

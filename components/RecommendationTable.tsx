@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { Badge, Button, Card, Group, ScrollArea, Select, SimpleGrid, Stack, Text, Title } from '@mantine/core';
-import type { HistoricalFcfValuation } from '@/lib/fcfValuation';
+import type { HistoricalEarningsValuation, HistoricalFcfValuation } from '@/lib/fcfValuation';
 import type { Recommendation } from '@/lib/types';
 import { brl, pct } from '@/lib/metrics';
 
@@ -19,6 +19,8 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
   const [sectorFilter, setSectorFilter] = useState('all');
   const [valuationByTicker, setValuationByTicker] = useState<Record<string, HistoricalFcfValuation>>({});
   const [loadingValuation, setLoadingValuation] = useState<string>();
+  const [earningsValuationByTicker, setEarningsValuationByTicker] = useState<Record<string, HistoricalEarningsValuation>>({});
+  const [loadingEarningsValuation, setLoadingEarningsValuation] = useState<string>();
   const sectorOptions = useMemo(() => [
     { value: 'all', label: 'All sectors' },
     ...[...new Set(data.map(stock => stock.sector || 'N/D'))]
@@ -53,6 +55,16 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
     }
   };
 
+  const analyzeEarnings = async (ticker: string) => {
+    setLoadingEarningsValuation(ticker);
+    try {
+      const valuation = await fetch(`/api/earnings-valuation?ticker=${encodeURIComponent(ticker)}`).then(r => r.json());
+      setEarningsValuationByTicker(current => ({ ...current, [ticker]: valuation }));
+    } finally {
+      setLoadingEarningsValuation(undefined);
+    }
+  };
+
   return <Card className="recommendations-shell" withBorder shadow="md" radius="xl" p={{ base: 'sm', sm: 'lg' }}>
     <Stack gap="md">
       <Group justify="space-between" align="flex-start" gap="sm">
@@ -82,6 +94,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
               </Group>
               <Group gap="xs" wrap="nowrap">
                 <Button size="xs" variant="light" loading={loadingValuation === stock.ticker} onClick={() => analyzeFcf(stock.ticker)}>Analyze FCF</Button>
+                <Button size="xs" variant="light" loading={loadingEarningsValuation === stock.ticker} onClick={() => analyzeEarnings(stock.ticker)}>Analyze Earnings</Button>
                 <Button size="xs" onClick={() => onAdd(stock)}>Add</Button>
               </Group>
             </Group>
@@ -99,6 +112,21 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
                 {valuationByTicker[stock.ticker].warnings.length > 0 && <Stack gap={2}>{valuationByTicker[stock.ticker].warnings.map(warning => <Text key={warning.code} size="xs" c="yellow.4">⚠ {warning.message}</Text>)}</Stack>}
                 <Text size="xs" c="dimmed">Educational analytics only. This simplified valuation is not a DCF and may be unreliable when interest rates, commodity cycles, or FCF volatility are high.</Text>
               </Stack> : <Stack gap={4}><Text size="sm" c="dimmed">Historical FCF valuation unavailable: {valuationByTicker[stock.ticker].message ?? 'positive annual FCF data is unavailable'}.</Text><Text size="xs" c="dimmed">Educational analytics only. This simplified valuation is not a DCF and may be unreliable when interest rates, commodity cycles, or FCF volatility are high.</Text></Stack>}
+            </Card>}
+
+            {earningsValuationByTicker[stock.ticker] && <Card withBorder radius="md" p="sm">
+              {earningsValuationByTicker[stock.ticker].status === 'available' ? <Stack gap="xs">
+                <Group gap="xs"><Badge color="matrix" variant="light">Historical earnings valuation</Badge><Badge color="yellow" variant="light">Volatility: {volatilityLabel(earningsValuationByTicker[stock.ticker].volatility)}</Badge><Text size="xs" c="dimmed">Latest {earningsValuationByTicker[stock.ticker].selectedAnnualEarnings.length} annual values</Text></Group>
+                <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
+                  <Metric label="Normalized earnings" value={brl(earningsValuationByTicker[stock.ticker].normalizedEarnings)} />
+                  <Metric label="Conservative 10%" value={brl(earningsValuationByTicker[stock.ticker].scenarios.conservative.companyValue)} />
+                  <Metric label="Base 8%" value={brl(earningsValuationByTicker[stock.ticker].scenarios.base.companyValue)} />
+                  <Metric label="Optimistic 6%" value={brl(earningsValuationByTicker[stock.ticker].scenarios.optimistic.companyValue)} />
+                </SimpleGrid>
+                <Text size="xs" c="dimmed">Selected earnings history: {earningsValuationByTicker[stock.ticker].selectedAnnualEarnings.map(point => `${point.year}: ${brl(point.earnings)}`).join(' • ')}</Text>
+                {earningsValuationByTicker[stock.ticker].warnings.length > 0 && <Stack gap={2}>{earningsValuationByTicker[stock.ticker].warnings.map(warning => <Text key={warning.code} size="xs" c="yellow.4">⚠ {warning.message}</Text>)}</Stack>}
+                <Text size="xs" c="dimmed">Educational analytics only. This simplified valuation is not a DCF and may be unreliable when interest rates, one-off items, or earnings volatility are high.</Text>
+              </Stack> : <Stack gap={4}><Text size="sm" c="dimmed">Historical earnings valuation unavailable: {earningsValuationByTicker[stock.ticker].message ?? 'positive annual earnings data is unavailable'}.</Text><Text size="xs" c="dimmed">Educational analytics only. This simplified valuation is not a DCF and may be unreliable when interest rates, one-off items, or earnings volatility are high.</Text></Stack>}
             </Card>}
 
             <SimpleGrid cols={{ base: 2, sm: 3, md: 4, xl: 6 }} spacing="sm">
