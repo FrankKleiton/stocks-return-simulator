@@ -5,9 +5,9 @@ import { Button, Card, NumberInput, Select, SimpleGrid, Stack, TextInput, Title 
 import type { DividendMode, PortfolioItem, SimulationInput, SimulationResult } from '@/lib/types';
 
 const dividendModeOptions = [
-  { value: 'ignore', label: 'Ignore dividends' },
-  { value: 'cash', label: 'Receive as cash' },
-  { value: 'reinvest', label: 'Automatically reinvest' }
+  { value: 'ignore', label: 'Ignorar dividendos' },
+  { value: 'cash', label: 'Receber em dinheiro' },
+  { value: 'reinvest', label: 'Reinvestir automaticamente' }
 ];
 
 const simulatorStorageKey = 'historicalSimulator';
@@ -55,23 +55,23 @@ export default function SimulationForm({ holdings, onResult }: { holdings: Portf
 
   return <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
     <Stack gap="md">
-      <Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Historical simulator</Title>
+      <Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Simulador histórico</Title>
       <form action={submit}>
         <Stack gap="sm">
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 1 }} spacing="sm">
-            <TextInput label="Start date" name="startDate" type="date" value={values.startDate} onChange={event => {
+            <TextInput label="Data inicial" name="startDate" type="date" value={values.startDate} onChange={event => {
               const startDate = event.currentTarget.value;
               setValues(current => ({ ...current, startDate }));
             }}/>
-            <TextInput label="End date" name="endDate" type="date" value={values.endDate} onChange={event => {
+            <TextInput label="Data final" name="endDate" type="date" value={values.endDate} onChange={event => {
               const endDate = event.currentTarget.value;
               setValues(current => ({ ...current, endDate }));
             }}/>
-            <NumberInput label="Initial investment" name="initialInvestment" value={values.initialInvestment} onChange={value => setValues(current => ({ ...current, initialInvestment: Number(value) || 0 }))} min={0}/>
-            <NumberInput label="Monthly contribution" name="monthlyContribution" value={values.monthlyContribution} onChange={value => setValues(current => ({ ...current, monthlyContribution: Number(value) || 0 }))} min={0}/>
+            <NumberInput label="Investimento inicial" name="initialInvestment" value={values.initialInvestment} onChange={value => setValues(current => ({ ...current, initialInvestment: Number(value) || 0 }))} min={0}/>
+            <NumberInput label="Aporte mensal" name="monthlyContribution" value={values.monthlyContribution} onChange={value => setValues(current => ({ ...current, monthlyContribution: Number(value) || 0 }))} min={0}/>
           </SimpleGrid>
-          <Select label="Dividends" name="dividendMode" value={values.dividendMode} onChange={value => setValues(current => ({ ...current, dividendMode: (value ?? 'reinvest') as DividendMode }))} data={dividendModeOptions}/>
-          <Button type="submit" fullWidth disabled={!holdings.length}>Run simulation</Button>
+          <Select label="Dividendos" name="dividendMode" value={values.dividendMode} onChange={value => setValues(current => ({ ...current, dividendMode: (value ?? 'reinvest') as DividendMode }))} data={dividendModeOptions}/>
+          <Button type="submit" fullWidth disabled={!holdings.length}>Rodar simulação</Button>
         </Stack>
       </form>
     </Stack>

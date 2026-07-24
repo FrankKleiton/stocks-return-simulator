@@ -10,15 +10,15 @@ type ResultCard = [label: string, value: string];
 
 function resultCards(result: SimulationResult): ResultCard[] {
   return [
-    ['Final value', brl(result.finalValue)],
-    ['Total return', pct(result.totalReturn)],
-    ['Money-weighted return', pct(result.moneyWeightedAnnualizedReturn)],
-    ['Time-weighted return', pct(result.timeWeightedAnnualizedReturn)],
-    ['Dividends received', brl(result.totalDividends)],
-    ['Dividends reinvested', brl(result.totalDividendsReinvested)],
-    ['Annual dividend income', brl(result.annualDividendIncome)],
-    ['Cash balance', brl(result.cashBalance)],
-    ['Best / worst', `${result.best?.ticker ?? '-'} / ${result.worst?.ticker ?? '-'}`]
+    ['Valor final', brl(result.finalValue)],
+    ['Retorno total', pct(result.totalReturn)],
+    ['Retorno money-weighted (TIR)', pct(result.moneyWeightedAnnualizedReturn)],
+    ['Retorno time-weighted (TWR)', pct(result.timeWeightedAnnualizedReturn)],
+    ['Dividendos recebidos', brl(result.totalDividends)],
+    ['Dividendos reinvestidos', brl(result.totalDividendsReinvested)],
+    ['Renda anual de dividendos', brl(result.annualDividendIncome)],
+    ['Saldo em caixa', brl(result.cashBalance)],
+    ['Melhor / pior', `${result.best?.ticker ?? '-'} / ${result.worst?.ticker ?? '-'}`]
   ];
 }
 

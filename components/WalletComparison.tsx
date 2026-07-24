@@ -15,19 +15,19 @@ type WalletResult = { strategy: WalletStrategy; name: string; holdings: Portfoli
 
 const colors = ['#22d3ee', '#8b5cf6', '#10b981', '#f59e0b', '#f472b6', '#84cc16'];
 const strategyLabels: Record<WalletStrategy, string> = {
-  quality: 'Quality score',
-  magicFormula: 'Magic Formula',
-  valueIncome: 'Value + income filter',
+  quality: 'Pontuação de qualidade',
+  magicFormula: 'Fórmula Mágica',
+  valueIncome: 'Filtro de valor + renda',
   dividends: 'Dividend yield',
-  cheapPvp: 'Lowest P/VP',
-  roe: 'Highest avg ROE'
+  cheapPvp: 'Menor P/VP',
+  roe: 'Maior ROE médio'
 };
 
 const strategyOptions = Object.entries(strategyLabels).map(([value, label]) => ({ value, label }));
 const dividendModeOptions = [
-  { value: 'ignore', label: 'Ignore dividends' },
-  { value: 'cash', label: 'Receive as cash' },
-  { value: 'reinvest', label: 'Automatically reinvest' }
+  { value: 'ignore', label: 'Ignorar dividendos' },
+  { value: 'cash', label: 'Receber em dinheiro' },
+  { value: 'reinvest', label: 'Reinvestir automaticamente' }
 ];
 
 const clampScore = (value: number) => Math.max(0, Math.min(100, value));
@@ -123,46 +123,46 @@ export default function WalletComparison({ data, loading }: { data: Recommendati
   return <Card withBorder shadow="md" radius="xl" p={{ base: 'sm', sm: 'lg' }}>
     <Stack gap="md">
       <div>
-        <Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Compare generated wallets</Title>
-        <Text size="sm" c="dimmed">Build equal-weight wallets from different sorting filters and compare their historical performance over time.</Text>
+        <Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Comparar carteiras geradas</Title>
+        <Text size="sm" c="dimmed">Monte carteiras de peso igual a partir de diferentes filtros de ordenação e compare o desempenho histórico ao longo do tempo.</Text>
       </div>
 
       <form onSubmit={compare}>
         <Stack gap="sm">
           <SimpleGrid cols={{ base: 1, md: 2, lg: 4 }} spacing="sm">
-            <MultiSelect label="Wallet sorting filters" data={strategyOptions} value={strategies} onChange={setStrategies} disabled={loading}/>
-            <Select label="Sector" searchable value={sectorFilter} onChange={(value) => setSectorFilter(value ?? 'all')} data={sectorOptions} disabled={loading}/>
-            <NumberInput label="Stocks per wallet" min={2} max={20} value={topCount} onChange={value => setTopCount(Number(value) || 2)}/>
-            <Select label="Dividends" value={dividendMode} onChange={value => setDividendMode((value ?? 'reinvest') as DividendMode)} data={dividendModeOptions}/>
-            <TextInput label="Start date" type="date" value={startDate} onChange={event => setStartDate(event.currentTarget.value)}/>
-            <TextInput label="End date" type="date" value={endDate} onChange={event => setEndDate(event.currentTarget.value)}/>
-            <NumberInput label="Initial investment" min={0} value={initialInvestment} onChange={value => setInitialInvestment(Number(value) || 0)}/>
-            <NumberInput label="Monthly contribution" min={0} value={monthlyContribution} onChange={value => setMonthlyContribution(Number(value) || 0)}/>
+            <MultiSelect label="Filtros de ordenação da carteira" data={strategyOptions} value={strategies} onChange={setStrategies} disabled={loading}/>
+            <Select label="Setor" searchable value={sectorFilter} onChange={(value) => setSectorFilter(value ?? 'all')} data={sectorOptions} disabled={loading}/>
+            <NumberInput label="Ações por carteira" min={2} max={20} value={topCount} onChange={value => setTopCount(Number(value) || 2)}/>
+            <Select label="Dividendos" value={dividendMode} onChange={value => setDividendMode((value ?? 'reinvest') as DividendMode)} data={dividendModeOptions}/>
+            <TextInput label="Data inicial" type="date" value={startDate} onChange={event => setStartDate(event.currentTarget.value)}/>
+            <TextInput label="Data final" type="date" value={endDate} onChange={event => setEndDate(event.currentTarget.value)}/>
+            <NumberInput label="Investimento inicial" min={0} value={initialInvestment} onChange={value => setInitialInvestment(Number(value) || 0)}/>
+            <NumberInput label="Aporte mensal" min={0} value={monthlyContribution} onChange={value => setMonthlyContribution(Number(value) || 0)}/>
           </SimpleGrid>
-          <Button type="submit" loading={running} disabled={loading || !previewWallets.length}>Compare wallets</Button>
+          <Button type="submit" loading={running} disabled={loading || !previewWallets.length}>Comparar carteiras</Button>
         </Stack>
       </form>
 
       {!!previewWallets.length && <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
         {previewWallets.map(wallet => <Card key={wallet.strategy} withBorder radius="lg" p="sm">
-          <Group gap="xs" mb={6}><Badge variant="light" color="cyber">{wallet.name}</Badge><Text size="xs" c="dimmed">{wallet.holdings.length} stocks</Text></Group>
+          <Group gap="xs" mb={6}><Badge variant="light" color="cyber">{wallet.name}</Badge><Text size="xs" c="dimmed">{wallet.holdings.length} ações</Text></Group>
           <Text size="xs" c="dimmed" lineClamp={3}>{wallet.holdings.map(holding => holding.ticker).join(' • ')}</Text>
         </Card>)}
       </SimpleGrid>}
 
       {!!walletResults.length && <>
         <Card withBorder radius="lg" p="md">
-          <Title order={3} fz="md" mb="sm">Wallet value over time</Title>
+          <Title order={3} fz="md" mb="sm">Valor da carteira ao longo do tempo</Title>
           <div style={{ height: 340 }}><Line data={chartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#cbd5e1' } }, tooltip: { mode: 'index', intersect: false } }, scales: { x: { ticks: { color: '#94a3b8', maxTicksLimit: 8 }, grid: { color: 'rgba(148,163,184,0.12)' } }, y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.12)' } } } } as ChartOptions<'line'>}/></div>
         </Card>
         <ScrollArea type="auto">
           <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
             {walletResults.map((wallet, index) => <Card key={wallet.strategy} withBorder radius="lg" p="md">
               <Stack gap={6}>
-                <Group gap="xs"><Badge style={{ backgroundColor: colors[index % colors.length] }}>{wallet.name}</Badge><Text size="xs" c="dimmed">{wallet.holdings.length} stocks</Text></Group>
+                <Group gap="xs"><Badge style={{ backgroundColor: colors[index % colors.length] }}>{wallet.name}</Badge><Text size="xs" c="dimmed">{wallet.holdings.length} ações</Text></Group>
                 <Text size="sm" fw={800}>{brl(wallet.result.finalValue)}</Text>
-                <Text size="xs" c="dimmed">Total return: {pct(wallet.result.totalReturn)} • TWR: {pct(wallet.result.timeWeightedAnnualizedReturn)}</Text>
-                <Text size="xs" c="dimmed">Best / worst: {wallet.result.best?.ticker ?? '-'} / {wallet.result.worst?.ticker ?? '-'}</Text>
+                <Text size="xs" c="dimmed">Retorno total: {pct(wallet.result.totalReturn)} • TWR: {pct(wallet.result.timeWeightedAnnualizedReturn)}</Text>
+                <Text size="xs" c="dimmed">Melhor / pior: {wallet.result.best?.ticker ?? '-'} / {wallet.result.worst?.ticker ?? '-'}</Text>
                 <Text size="xs" c="dimmed">{wallet.holdings.map(holding => holding.ticker).join(' • ')}</Text>
               </Stack>
             </Card>)}

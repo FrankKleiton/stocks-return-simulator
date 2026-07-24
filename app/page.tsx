@@ -11,15 +11,15 @@ import { BarChart3, LineChart, ShieldCheck, Sparkles, WalletCards } from 'lucide
 import type { PortfolioItem, Recommendation, SimulationResult } from '@/lib/types';
 
 const workflow = [
-  { step: '01', title: 'Build', description: 'Create a portfolio and assign allocations.', icon: WalletCards },
-  { step: '02', title: 'Simulate', description: 'Run historical scenarios with dividends.', icon: LineChart },
-  { step: '03', title: 'Discover', description: 'Use ranked quality, valuation, and FCF signals.', icon: Sparkles }
+  { step: '01', title: 'Montar', description: 'Crie uma carteira e defina as alocações.', icon: WalletCards },
+  { step: '02', title: 'Simular', description: 'Rode cenários históricos com dividendos.', icon: LineChart },
+  { step: '03', title: 'Descobrir', description: 'Use sinais classificados de qualidade, valuation e FCL.', icon: Sparkles }
 ];
 
 const highlights = [
-  ['80+', 'ranked stocks'],
-  ['10y', 'FCF window'],
-  ['3', 'valuation scenarios']
+  ['80+', 'ações classificadas'],
+  ['10a', 'janela de FCL'],
+  ['3', 'cenários de valuation']
 ];
 
 export default function Home() {
@@ -41,9 +41,9 @@ export default function Home() {
       <Box component="header" className="hero-shell" p={{ base: 'md', sm: 'xl' }}>
         <Group justify="space-between" align="center" gap="md" mb="xl">
           <Group gap="xs">
-            <Badge color="cyber" variant="light" size="lg">Status Invest data</Badge>
-            <Badge color="plasma" variant="light" size="lg">Chart.js analytics</Badge>
-            <Badge color="matrix" variant="light" size="lg">Dividend simulator</Badge>
+            <Badge color="cyber" variant="light" size="lg">Dados do Status Invest</Badge>
+            <Badge color="plasma" variant="light" size="lg">Análises com Chart.js</Badge>
+            <Badge color="matrix" variant="light" size="lg">Simulador de dividendos</Badge>
           </Group>
           <ColorSchemeToggle />
         </Group>
@@ -52,13 +52,13 @@ export default function Home() {
           <Stack gap="lg" justify="center">
             <Group gap="xs">
               <ThemeIcon variant="light" color="cyber" radius="xl" size="lg"><BarChart3 size={18} /></ThemeIcon>
-              <Text size="xs" fw={800} tt="uppercase" c="cyber.3" style={{ letterSpacing: '0.22em' }}>Brazil Market Intelligence</Text>
+              <Text size="xs" fw={800} tt="uppercase" c="cyber.3" style={{ letterSpacing: '0.22em' }}>Inteligência do Mercado Brasileiro</Text>
             </Group>
-            <Title className="hero-title" order={1} fz={{ base: 38, sm: 58, md: 78 }} lh={0.94}>Invest with clearer historical context</Title>
-            <Text maw={760} c="dimmed" fz={{ base: 'md', sm: 'xl' }} lh={1.65}>Build Brazilian stock portfolios, backtest dividend-aware scenarios, and inspect transparent quality, valuation, and historical FCF signals in one focused workspace.</Text>
+            <Title className="hero-title" order={1} fz={{ base: 38, sm: 58, md: 78 }} lh={0.94}>Invista com mais clareza histórica</Title>
+            <Text maw={760} c="dimmed" fz={{ base: 'md', sm: 'xl' }} lh={1.65}>Monte carteiras de ações brasileiras, faça backtests de cenários com dividendos e analise sinais transparentes de qualidade, valuation e fluxo de caixa livre histórico em um só lugar.</Text>
             <Group gap="sm">
-              <Button size="md" radius="xl" onClick={() => document.getElementById('recommendations')?.scrollIntoView({ behavior: 'smooth' })}>Explore recommendations</Button>
-              <Button size="md" radius="xl" variant="light" color="gray" onClick={() => document.getElementById('portfolio-builder')?.scrollIntoView({ behavior: 'smooth' })}>Build portfolio</Button>
+              <Button size="md" radius="xl" onClick={() => document.getElementById('recommendations')?.scrollIntoView({ behavior: 'smooth' })}>Explorar recomendações</Button>
+              <Button size="md" radius="xl" variant="light" color="gray" onClick={() => document.getElementById('portfolio-builder')?.scrollIntoView({ behavior: 'smooth' })}>Montar carteira</Button>
             </Group>
           </Stack>
 
@@ -66,8 +66,8 @@ export default function Home() {
             <Stack gap="lg">
               <Group justify="space-between" align="flex-start">
                 <div>
-                  <Text size="xs" fw={800} tt="uppercase" c="dimmed">Analytics snapshot</Text>
-                  <Title order={2} fz={{ base: 24, sm: 32 }}>Quality + cash-flow lens</Title>
+                  <Text size="xs" fw={800} tt="uppercase" c="dimmed">Resumo analítico</Text>
+                  <Title order={2} fz={{ base: 24, sm: 32 }}>Visão de qualidade + fluxo de caixa</Title>
                 </div>
                 <ThemeIcon variant="gradient" gradient={{ from: 'cyber', to: 'plasma' }} radius="xl" size={48}><ShieldCheck size={24} /></ThemeIcon>
               </Group>
@@ -77,7 +77,7 @@ export default function Home() {
                   <Text size="xs" c="dimmed" tt="uppercase" fw={700}>{label}</Text>
                 </Box>)}
               </SimpleGrid>
-              <Text size="sm" c="dimmed">Designed to avoid false precision: no buy/sell labels, no fake fair value per share, just visible assumptions and useful warnings.</Text>
+              <Text size="sm" c="dimmed">Feito para evitar falsa precisão: sem rótulos de compra/venda, sem valor justo por ação fictício — apenas premissas visíveis e alertas úteis.</Text>
             </Stack>
           </Card>
         </SimpleGrid>
@@ -103,7 +103,7 @@ export default function Home() {
         <WalletComparison data={recommendations} loading={loading}/>
         <Box id="recommendations"><RecommendationTable data={recommendations} loading={loading} onAdd={add}/></Box>
       </Stack>
-      <Text pb="xl" size="xs" c="dimmed">Educational analytics only. Recommendations are model suggestions, not investment advice.</Text>
+      <Text pb="xl" size="xs" c="dimmed">Apenas para fins educacionais. As recomendações são sugestões do modelo, não são conselhos de investimento.</Text>
     </Stack>
   </Container>;
 }

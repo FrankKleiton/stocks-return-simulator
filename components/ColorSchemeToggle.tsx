@@ -7,9 +7,9 @@ export default function ColorSchemeToggle() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const isDark = colorScheme === 'dark';
 
-  return <Tooltip label={`Switch to ${isDark ? 'light' : 'dark'} mode`}>
+  return <Tooltip label={`Mudar para modo ${isDark ? 'claro' : 'escuro'}`}>
     <ActionIcon
-      aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+      aria-label={`Mudar para modo ${isDark ? 'claro' : 'escuro'}`}
       variant="light"
       color={isDark ? 'yellow' : 'dark'}
       size="lg"

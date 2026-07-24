@@ -12,7 +12,19 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   </div>;
 }
 
-const volatilityLabel = (value: HistoricalFcfValuation['volatility']) => value.replace('_', ' ');
+const volatilityLabelsPt: Record<HistoricalFcfValuation['volatility'], string> = { low: 'baixa', medium: 'média', high: 'alta', very_high: 'muito alta' };
+const volatilityLabel = (value: HistoricalFcfValuation['volatility']) => volatilityLabelsPt[value];
+
+const warningMessagePt = (code: string, metricLabel: string) => {
+  if (code === 'limited_history') return `O valuation usa menos de 10 valores anuais de ${metricLabel}`;
+  return `O histórico de ${metricLabel} selecionado é volátil`;
+};
+
+const unavailableMessagePt = (reason: string | undefined, metricLabel: string) => {
+  if (reason === 'could_not_fetch_free_cash_flow_data' || reason === 'could_not_fetch_earnings_data') return `não foi possível obter dados de ${metricLabel}`;
+  if (reason === 'normalized_fcf_is_negative_or_zero' || reason === 'normalized_earnings_is_negative_or_zero') return `${metricLabel} normalizado é negativo ou zero`;
+  return `dados de ${metricLabel} indisponíveis`;
+};
 
 export default function RecommendationTable({ data, onAdd, loading }: { data: Recommendation[]; loading: boolean; onAdd: (r: Recommendation) => void }) {
   const [sortBy, setSortBy] = useState<'none' | 'quality' | 'magicFormula' | 'valueIncome'>('none');
@@ -22,7 +34,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
   const [earningsValuationByTicker, setEarningsValuationByTicker] = useState<Record<string, HistoricalEarningsValuation>>({});
   const [loadingEarningsValuation, setLoadingEarningsValuation] = useState<string>();
   const sectorOptions = useMemo(() => [
-    { value: 'all', label: 'All sectors' },
+    { value: 'all', label: 'Todos os setores' },
     ...[...new Set(data.map(stock => stock.sector || 'N/D'))]
       .sort((a, b) => a.localeCompare(b))
       .map(sector => ({ value: sector, label: sector }))
@@ -71,13 +83,13 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
     <Stack gap="md">
       <Group justify="space-between" align="flex-start" gap="sm">
         <div>
-          <Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Quality recommendations</Title>
-          <Text size="sm" c="dimmed">A Greenblatt-inspired ranking using ROIC + earnings yield, with optional dividend and P/E screening.</Text>
+          <Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Recomendações de qualidade</Title>
+          <Text size="sm" c="dimmed">Um ranking inspirado em Greenblatt usando ROIC + earnings yield, com filtros opcionais de dividendos e P/L.</Text>
         </div>
         <Group gap="xs">
-          {loading && <Text size="sm" c="cyber.3">Analyzing…</Text>}
+          {loading && <Text size="sm" c="cyber.3">Analisando…</Text>}
           <Select searchable w={{ base: 230, sm: 260 }} value={sectorFilter} onChange={(v) => setSectorFilter(v ?? 'all')} data={sectorOptions}/>
-          <Select w={{ base: 230, sm: 360 }} value={sortBy} onChange={(v) => setSortBy((v ?? 'none') as 'none' | 'quality' | 'magicFormula' | 'valueIncome')} data={[{ value: 'none', label: 'No sort' }, { value: 'quality', label: 'Sort: Quality score' }, { value: 'magicFormula', label: 'Sort: Magic Formula' }, { value: 'valueIncome', label: 'Sort: Earn. Yield + Avg ROE + Avg DY + P/VP below avg' }]}/>
+          <Select w={{ base: 230, sm: 360 }} value={sortBy} onChange={(v) => setSortBy((v ?? 'none') as 'none' | 'quality' | 'magicFormula' | 'valueIncome')} data={[{ value: 'none', label: 'Sem ordenação' }, { value: 'quality', label: 'Ordenar: Pontuação de qualidade' }, { value: 'magicFormula', label: 'Ordenar: Fórmula Mágica' }, { value: 'valueIncome', label: 'Ordenar: Earnings Yield + ROE médio + DY médio + P/VP abaixo da média' }]}/>
         </Group>
       </Group>
 
@@ -90,62 +102,62 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
                 <Badge size="lg" color="dark" variant="filled">#{index + 1}</Badge>
                 <div>
                   <Title order={3} fz="lg">{stock.ticker}</Title>
-                  <Text size="sm" c="dimmed" lineClamp={1}>{stock.companyName || 'Company name unavailable'}</Text>
+                  <Text size="sm" c="dimmed" lineClamp={1}>{stock.companyName || 'Nome da empresa indisponível'}</Text>
                   <Text size="xs" c="dimmed">{stock.industry}</Text>
                 </div>
               </Group>
               <Group gap="xs" wrap="nowrap">
-                <Button size="xs" variant="light" loading={loadingValuation === stock.ticker} onClick={() => analyzeFcf(stock.ticker)}>Analyze FCF</Button>
-                <Button size="xs" variant="light" loading={loadingEarningsValuation === stock.ticker} onClick={() => analyzeEarnings(stock.ticker)}>Analyze Earnings</Button>
-                <Button size="xs" onClick={() => onAdd(stock)}>Add</Button>
+                <Button size="xs" variant="light" loading={loadingValuation === stock.ticker} onClick={() => analyzeFcf(stock.ticker)}>Analisar FCL</Button>
+                <Button size="xs" variant="light" loading={loadingEarningsValuation === stock.ticker} onClick={() => analyzeEarnings(stock.ticker)}>Analisar Lucros</Button>
+                <Button size="xs" onClick={() => onAdd(stock)}>Adicionar</Button>
               </Group>
             </Group>
 
             {valuationByTicker[stock.ticker] && <Card withBorder radius="md" p="sm">
               {valuationByTicker[stock.ticker].status === 'available' ? <Stack gap="xs">
-                <Group gap="xs"><Badge color="matrix" variant="light">Historical FCF valuation</Badge><Badge color="yellow" variant="light">Volatility: {volatilityLabel(valuationByTicker[stock.ticker].volatility)}</Badge><Text size="xs" c="dimmed">Latest {valuationByTicker[stock.ticker].selectedAnnualFcf.length} annual values</Text></Group>
+                <Group gap="xs"><Badge color="matrix" variant="light">Valuation histórico de FCL</Badge><Badge color="yellow" variant="light">Volatilidade: {volatilityLabel(valuationByTicker[stock.ticker].volatility)}</Badge><Text size="xs" c="dimmed">Últimos {valuationByTicker[stock.ticker].selectedAnnualFcf.length} valores anuais</Text></Group>
                 <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
-                  <Metric label="Normalized FCF" value={brl(valuationByTicker[stock.ticker].normalizedFcf)} />
-                  <Metric label="Conservative 10%" value={brl(valuationByTicker[stock.ticker].scenarios.conservative.companyValue)} />
+                  <Metric label="FCL normalizado" value={brl(valuationByTicker[stock.ticker].normalizedFcf)} />
+                  <Metric label="Conservador 10%" value={brl(valuationByTicker[stock.ticker].scenarios.conservative.companyValue)} />
                   <Metric label="Base 8%" value={brl(valuationByTicker[stock.ticker].scenarios.base.companyValue)} />
-                  <Metric label="Optimistic 6%" value={brl(valuationByTicker[stock.ticker].scenarios.optimistic.companyValue)} />
+                  <Metric label="Otimista 6%" value={brl(valuationByTicker[stock.ticker].scenarios.optimistic.companyValue)} />
                 </SimpleGrid>
-                <Text size="xs" c="dimmed">Selected FCF history: {valuationByTicker[stock.ticker].selectedAnnualFcf.map(point => `${point.year}: ${brl(point.fcf)}`).join(' • ')}</Text>
-                {valuationByTicker[stock.ticker].warnings.length > 0 && <Stack gap={2}>{valuationByTicker[stock.ticker].warnings.map(warning => <Text key={warning.code} size="xs" c="yellow.4">⚠ {warning.message}</Text>)}</Stack>}
-                <Text size="xs" c="dimmed">Educational analytics only. This simplified valuation is not a DCF and may be unreliable when interest rates, commodity cycles, or FCF volatility are high.</Text>
-              </Stack> : <Stack gap={4}><Text size="sm" c="dimmed">Historical FCF valuation unavailable: {valuationByTicker[stock.ticker].message ?? 'positive annual FCF data is unavailable'}.</Text><Text size="xs" c="dimmed">Educational analytics only. This simplified valuation is not a DCF and may be unreliable when interest rates, commodity cycles, or FCF volatility are high.</Text></Stack>}
+                <Text size="xs" c="dimmed">Histórico de FCL selecionado: {valuationByTicker[stock.ticker].selectedAnnualFcf.map(point => `${point.year}: ${brl(point.fcf)}`).join(' • ')}</Text>
+                {valuationByTicker[stock.ticker].warnings.length > 0 && <Stack gap={2}>{valuationByTicker[stock.ticker].warnings.map(warning => <Text key={warning.code} size="xs" c="yellow.4">⚠ {warningMessagePt(warning.code, 'FCL')}</Text>)}</Stack>}
+                <Text size="xs" c="dimmed">Apenas para fins educacionais. Este valuation simplificado não é um DCF e pode ser pouco confiável quando as taxas de juros, os ciclos de commodities ou a volatilidade do FCL forem altos.</Text>
+              </Stack> : <Stack gap={4}><Text size="sm" c="dimmed">Valuation histórico de FCL indisponível: {unavailableMessagePt(valuationByTicker[stock.ticker].reason, 'FCL')}.</Text><Text size="xs" c="dimmed">Apenas para fins educacionais. Este valuation simplificado não é um DCF e pode ser pouco confiável quando as taxas de juros, os ciclos de commodities ou a volatilidade do FCL forem altos.</Text></Stack>}
             </Card>}
 
             {earningsValuationByTicker[stock.ticker] && <Card withBorder radius="md" p="sm">
               {earningsValuationByTicker[stock.ticker].status === 'available' ? <Stack gap="xs">
-                <Group gap="xs"><Badge color="matrix" variant="light">Historical earnings valuation</Badge><Badge color="yellow" variant="light">Volatility: {volatilityLabel(earningsValuationByTicker[stock.ticker].volatility)}</Badge><Text size="xs" c="dimmed">Latest {earningsValuationByTicker[stock.ticker].selectedAnnualEarnings.length} annual values</Text></Group>
+                <Group gap="xs"><Badge color="matrix" variant="light">Valuation histórico de lucros</Badge><Badge color="yellow" variant="light">Volatilidade: {volatilityLabel(earningsValuationByTicker[stock.ticker].volatility)}</Badge><Text size="xs" c="dimmed">Últimos {earningsValuationByTicker[stock.ticker].selectedAnnualEarnings.length} valores anuais</Text></Group>
                 <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
-                  <Metric label="Normalized earnings" value={brl(earningsValuationByTicker[stock.ticker].normalizedEarnings)} />
-                  <Metric label="Conservative 10%" value={brl(earningsValuationByTicker[stock.ticker].scenarios.conservative.companyValue)} />
+                  <Metric label="Lucro normalizado" value={brl(earningsValuationByTicker[stock.ticker].normalizedEarnings)} />
+                  <Metric label="Conservador 10%" value={brl(earningsValuationByTicker[stock.ticker].scenarios.conservative.companyValue)} />
                   <Metric label="Base 8%" value={brl(earningsValuationByTicker[stock.ticker].scenarios.base.companyValue)} />
-                  <Metric label="Optimistic 6%" value={brl(earningsValuationByTicker[stock.ticker].scenarios.optimistic.companyValue)} />
+                  <Metric label="Otimista 6%" value={brl(earningsValuationByTicker[stock.ticker].scenarios.optimistic.companyValue)} />
                 </SimpleGrid>
-                <Text size="xs" c="dimmed">Selected earnings history: {earningsValuationByTicker[stock.ticker].selectedAnnualEarnings.map(point => `${point.year}: ${brl(point.earnings)}`).join(' • ')}</Text>
-                {earningsValuationByTicker[stock.ticker].warnings.length > 0 && <Stack gap={2}>{earningsValuationByTicker[stock.ticker].warnings.map(warning => <Text key={warning.code} size="xs" c="yellow.4">⚠ {warning.message}</Text>)}</Stack>}
-                <Text size="xs" c="dimmed">Educational analytics only. This simplified valuation is not a DCF and may be unreliable when interest rates, one-off items, or earnings volatility are high.</Text>
-              </Stack> : <Stack gap={4}><Text size="sm" c="dimmed">Historical earnings valuation unavailable: {earningsValuationByTicker[stock.ticker].message ?? 'positive annual earnings data is unavailable'}.</Text><Text size="xs" c="dimmed">Educational analytics only. This simplified valuation is not a DCF and may be unreliable when interest rates, one-off items, or earnings volatility are high.</Text></Stack>}
+                <Text size="xs" c="dimmed">Histórico de lucros selecionado: {earningsValuationByTicker[stock.ticker].selectedAnnualEarnings.map(point => `${point.year}: ${brl(point.earnings)}`).join(' • ')}</Text>
+                {earningsValuationByTicker[stock.ticker].warnings.length > 0 && <Stack gap={2}>{earningsValuationByTicker[stock.ticker].warnings.map(warning => <Text key={warning.code} size="xs" c="yellow.4">⚠ {warningMessagePt(warning.code, 'lucros')}</Text>)}</Stack>}
+                <Text size="xs" c="dimmed">Apenas para fins educacionais. Este valuation simplificado não é um DCF e pode ser pouco confiável quando as taxas de juros, itens não recorrentes ou a volatilidade dos lucros forem altos.</Text>
+              </Stack> : <Stack gap={4}><Text size="sm" c="dimmed">Valuation histórico de lucros indisponível: {unavailableMessagePt(earningsValuationByTicker[stock.ticker].reason, 'lucros')}.</Text><Text size="xs" c="dimmed">Apenas para fins educacionais. Este valuation simplificado não é um DCF e pode ser pouco confiável quando as taxas de juros, itens não recorrentes ou a volatilidade dos lucros forem altos.</Text></Stack>}
             </Card>}
 
             <SimpleGrid cols={{ base: 2, sm: 3, md: 4, xl: 6 }} spacing="sm">
-              <Metric label="Price" value={brl(stock.price)} />
-              <Metric label="Earn. Yield" value={pct(stock.earningsYield)} />
-              <Metric label="P/E" value={stock.pL > 0 ? stock.pL.toFixed(2) : '-'} />
+              <Metric label="Preço" value={brl(stock.price)} />
+              <Metric label="Earnings Yield" value={pct(stock.earningsYield)} />
+              <Metric label="P/L" value={stock.pL > 0 ? stock.pL.toFixed(2) : '-'} />
               <Metric label="P/VP" value={stock.pVp.toFixed(2)} />
-              <Metric label="Avg P/VP" value={stock.averagePVp.toFixed(2)} />
+              <Metric label="P/VP médio" value={stock.averagePVp.toFixed(2)} />
               <Metric label="ROE" value={pct(stock.roe)} />
-              <Metric label="Avg ROE" value={pct(stock.averageRoe)} />
+              <Metric label="ROE médio" value={pct(stock.averageRoe)} />
               <Metric label="ROIC" value={pct(stock.roic)} />
-              <Metric label="Avg DY" value={pct(stock.averageDividendYield)} />
-              <Metric label="Div years" value={stock.yearsPayingDividends} />
+              <Metric label="DY médio" value={pct(stock.averageDividendYield)} />
+              <Metric label="Anos de dividendos" value={stock.yearsPayingDividends} />
             </SimpleGrid>
           </Stack>
         </Card>)}
-        {!loading && !displayedData.length && <Text c="dimmed" ta="center" py="xl">No recommendations available.</Text>}
+        {!loading && !displayedData.length && <Text c="dimmed" ta="center" py="xl">Nenhuma recomendação disponível.</Text>}
         </Stack>
       </ScrollArea>
     </Stack>
