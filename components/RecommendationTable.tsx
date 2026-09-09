@@ -4,6 +4,7 @@ import { Badge, Button, Card, Group, ScrollArea, Select, SimpleGrid, Stack, Text
 import type { HistoricalEarningsValuation, HistoricalFcfValuation } from '@/lib/fcfValuation';
 import type { Recommendation } from '@/lib/types';
 import { brl, pct } from '@/lib/metrics';
+import { errorMessage, fetchJson } from '@/lib/clientFetch';
 
 function Metric({ label, value }: { label: string; value: string | number }) {
   return <div>
@@ -33,6 +34,7 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
   const [loadingValuation, setLoadingValuation] = useState<string>();
   const [earningsValuationByTicker, setEarningsValuationByTicker] = useState<Record<string, HistoricalEarningsValuation>>({});
   const [loadingEarningsValuation, setLoadingEarningsValuation] = useState<string>();
+  const [valuationErrorByTicker, setValuationErrorByTicker] = useState<Record<string, string | undefined>>({});
   const sectorOptions = useMemo(() => [
     { value: 'all', label: 'Todos os setores' },
     ...[...new Set(data.map(stock => stock.sector || 'N/D'))]
@@ -62,8 +64,11 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
   const analyzeFcf = async (ticker: string) => {
     setLoadingValuation(ticker);
     try {
-      const valuation = await fetch(`/api/fcf-valuation?ticker=${encodeURIComponent(ticker)}`).then(r => r.json());
+      const valuation = await fetchJson<HistoricalFcfValuation>(`/api/fcf-valuation?ticker=${encodeURIComponent(ticker)}`);
       setValuationByTicker(current => ({ ...current, [ticker]: valuation }));
+      setValuationErrorByTicker(current => ({ ...current, [ticker]: undefined }));
+    } catch (e) {
+      setValuationErrorByTicker(current => ({ ...current, [ticker]: errorMessage(e) }));
     } finally {
       setLoadingValuation(undefined);
     }
@@ -72,8 +77,11 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
   const analyzeEarnings = async (ticker: string) => {
     setLoadingEarningsValuation(ticker);
     try {
-      const valuation = await fetch(`/api/earnings-valuation?ticker=${encodeURIComponent(ticker)}`).then(r => r.json());
+      const valuation = await fetchJson<HistoricalEarningsValuation>(`/api/earnings-valuation?ticker=${encodeURIComponent(ticker)}`);
       setEarningsValuationByTicker(current => ({ ...current, [ticker]: valuation }));
+      setValuationErrorByTicker(current => ({ ...current, [ticker]: undefined }));
+    } catch (e) {
+      setValuationErrorByTicker(current => ({ ...current, [ticker]: errorMessage(e) }));
     } finally {
       setLoadingEarningsValuation(undefined);
     }
@@ -112,6 +120,8 @@ export default function RecommendationTable({ data, onAdd, loading }: { data: Re
                 <Button size="xs" onClick={() => onAdd(stock)}>Adicionar</Button>
               </Group>
             </Group>
+
+            {valuationErrorByTicker[stock.ticker] && <Text size="sm" c="red.5">Não foi possível analisar: {valuationErrorByTicker[stock.ticker]}</Text>}
 
             {valuationByTicker[stock.ticker] && <Card withBorder radius="md" p="sm">
               {valuationByTicker[stock.ticker].status === 'available' ? <Stack gap="xs">

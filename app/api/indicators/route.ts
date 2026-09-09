@@ -1,3 +1,9 @@
-import { NextResponse } from 'next/server';
 import { fetchIndicators } from '@/lib/statusInvest';
-export async function GET(req: Request) { const u = new URL(req.url); return NextResponse.json(await fetchIndicators(u.searchParams.get('ticker') || '')); }
+import { BadRequestError, handleApiRequest } from '@/lib/apiRoute';
+export async function GET(req: Request) {
+  const ticker = new URL(req.url).searchParams.get('ticker') || '';
+  return handleApiRequest(async () => {
+    if (!ticker) throw new BadRequestError('ticker is required');
+    return fetchIndicators(ticker);
+  });
+}

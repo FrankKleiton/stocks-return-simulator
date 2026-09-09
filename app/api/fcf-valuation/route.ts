@@ -1,15 +1,10 @@
-import { NextResponse } from 'next/server';
 import { getHistoricalFcfValuation } from '@/lib/fcfValuation';
 import { statusInvestFcfAdapter } from '@/lib/statusInvest';
-
+import { BadRequestError, handleApiRequest } from '@/lib/apiRoute';
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const ticker = url.searchParams.get('ticker');
-  if (!ticker) return NextResponse.json({ error: 'ticker is required' }, { status: 400 });
-
-  try {
-    return NextResponse.json(await getHistoricalFcfValuation(ticker, statusInvestFcfAdapter));
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to fetch FCF valuation' }, { status: 502 });
-  }
+  const ticker = new URL(req.url).searchParams.get('ticker');
+  return handleApiRequest(async () => {
+    if (!ticker) throw new BadRequestError('ticker is required');
+    return getHistoricalFcfValuation(ticker, statusInvestFcfAdapter);
+  });
 }

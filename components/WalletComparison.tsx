@@ -1,7 +1,9 @@
 'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
-import { Badge, Button, Card, Group, MultiSelect, NumberInput, ScrollArea, Select, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Badge, Button, Card, Group, MultiSelect, NumberInput, ScrollArea, Select, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
+import { AlertTriangle } from 'lucide-react';
+import { errorMessage, fetchJson } from '@/lib/clientFetch';
 import type { ChartOptions } from 'chart.js';
 import { CategoryScale, Chart as ChartJS, Filler, Legend, LinearScale, LineElement, PointElement, Tooltip } from 'chart.js';
 import { Line } from 'react-chartjs-2';
@@ -68,6 +70,7 @@ export default function WalletComparison({ data, loading }: { data: Recommendati
   const [dividendMode, setDividendMode] = useState<DividendMode>('reinvest');
   const [running, setRunning] = useState(false);
   const [walletResults, setWalletResults] = useState<WalletResult[]>([]);
+  const [error, setError] = useState<string>();
 
   const sectorOptions = useMemo(() => [
     { value: 'all', label: 'All sectors' },
@@ -86,14 +89,19 @@ export default function WalletComparison({ data, loading }: { data: Recommendati
   async function compare(event: FormEvent) {
     event.preventDefault();
     setRunning(true);
+    setError(undefined);
     try {
       const results = await Promise.all(previewWallets.map(async wallet => {
         const input: SimulationInput = { holdings: wallet.holdings, startDate, endDate, initialInvestment, monthlyContribution, dividendMode };
-        const response = await fetch('/api/simulate', { method: 'POST', body: JSON.stringify(input) });
-        if (!response.ok) throw new Error(`Simulation failed for ${wallet.name}`);
-        return { ...wallet, result: await response.json() as SimulationResult };
+        try {
+          return { ...wallet, result: await fetchJson<SimulationResult>('/api/simulate', { method: 'POST', body: JSON.stringify(input) }) };
+        } catch (e) {
+          throw new Error(`${wallet.name}: ${errorMessage(e)}`);
+        }
       }));
       setWalletResults(results);
+    } catch (e) {
+      setError(errorMessage(e));
     } finally {
       setRunning(false);
     }
@@ -139,6 +147,7 @@ export default function WalletComparison({ data, loading }: { data: Recommendati
             <NumberInput label="Investimento inicial" min={0} value={initialInvestment} onChange={value => setInitialInvestment(Number(value) || 0)}/>
             <NumberInput label="Aporte mensal" min={0} value={monthlyContribution} onChange={value => setMonthlyContribution(Number(value) || 0)}/>
           </SimpleGrid>
+          {error && <Alert color="red" variant="light" icon={<AlertTriangle size={18} />} title="A comparação falhou">{error}</Alert>}
           <Button type="submit" loading={running} disabled={loading || !previewWallets.length}>Comparar carteiras</Button>
         </Stack>
       </form>

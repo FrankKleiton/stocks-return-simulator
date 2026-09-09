@@ -1,7 +1,13 @@
 import '@mantine/core/styles.css';
 import './globals.css';
 import type { Metadata } from 'next';
+import { ColorSchemeScript, mantineHtmlProps } from '@mantine/core';
 import MantineRoot from '@/components/MantineRoot';
 
 export const metadata: Metadata = { title: 'Simulador de Retorno de Ações Brasileiras', description: 'Simulação histórica de carteira com dados do Status Invest' };
-export default function RootLayout({ children }: { children: React.ReactNode }) { return <html lang="pt-BR"><body><MantineRoot>{children}</MantineRoot></body></html>; }
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return <html lang="pt-BR" {...mantineHtmlProps}>
+    <head><ColorSchemeScript defaultColorScheme="dark" /></head>
+    <body><MantineRoot>{children}</MantineRoot></body>
+  </html>;
+}

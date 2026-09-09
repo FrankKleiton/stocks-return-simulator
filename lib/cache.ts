@@ -1,3 +1,5 @@
+import { isUpstreamError } from './upstreamError';
+
 type Entry<T> = { expires: number; data: T };
 const memory = new Map<string, Entry<unknown>>();
 
@@ -13,7 +15,11 @@ export async function cached<T>(key: string, ttlMs: number, loader: () => Promis
 export async function retry<T>(fn: () => Promise<T>, attempts = 3, delayMs = 500): Promise<T> {
   let last: unknown;
   for (let i = 0; i < attempts; i++) {
-    try { return await fn(); } catch (e) { last = e; await new Promise(r => setTimeout(r, delayMs * (i + 1))); }
+    try { return await fn(); } catch (e) {
+      last = e;
+      if (isUpstreamError(e) && !e.retryable) break;
+      await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+    }
   }
   throw last;
 }

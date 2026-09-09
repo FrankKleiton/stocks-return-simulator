@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, Card, NumberInput, Select, SimpleGrid, Stack, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Card, NumberInput, Select, SimpleGrid, Stack, TextInput, Title } from '@mantine/core';
+import { AlertTriangle } from 'lucide-react';
+import { errorMessage, fetchJson } from '@/lib/clientFetch';
 import type { DividendMode, PortfolioItem, SimulationInput, SimulationResult } from '@/lib/types';
 
 const dividendModeOptions = [
@@ -33,6 +35,8 @@ function simulationInputFromForm(form: FormData, holdings: PortfolioItem[]): Sim
 
 export default function SimulationForm({ holdings, onResult }: { holdings: PortfolioItem[]; onResult: (r: SimulationResult) => void }) {
   const [values, setValues] = useState(defaultSimulatorValues);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string>();
 
   useEffect(() => {
     const saved = localStorage.getItem(simulatorStorageKey);
@@ -48,9 +52,15 @@ export default function SimulationForm({ holdings, onResult }: { holdings: Portf
       monthlyContribution: input.monthlyContribution,
       dividendMode: input.dividendMode
     }));
-    const res = await fetch('/api/simulate', { method: 'POST', body: JSON.stringify(input) });
-    if (!res.ok) throw new Error('Simulation failed');
-    onResult(await res.json());
+    setRunning(true);
+    setError(undefined);
+    try {
+      onResult(await fetchJson<SimulationResult>('/api/simulate', { method: 'POST', body: JSON.stringify(input) }));
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setRunning(false);
+    }
   }
 
   return <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
@@ -71,7 +81,8 @@ export default function SimulationForm({ holdings, onResult }: { holdings: Portf
             <NumberInput label="Aporte mensal" name="monthlyContribution" value={values.monthlyContribution} onChange={value => setValues(current => ({ ...current, monthlyContribution: Number(value) || 0 }))} min={0}/>
           </SimpleGrid>
           <Select label="Dividendos" name="dividendMode" value={values.dividendMode} onChange={value => setValues(current => ({ ...current, dividendMode: (value ?? 'reinvest') as DividendMode }))} data={dividendModeOptions}/>
-          <Button type="submit" fullWidth disabled={!holdings.length}>Rodar simulação</Button>
+          {error && <Alert color="red" variant="light" icon={<AlertTriangle size={18} />} title="A simulação falhou">{error}</Alert>}
+          <Button type="submit" fullWidth loading={running} disabled={!holdings.length}>Rodar simulação</Button>
         </Stack>
       </form>
     </Stack>

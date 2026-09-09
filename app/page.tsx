@@ -1,13 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Badge, Box, Button, Card, Container, Group, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
+import { Alert, Badge, Box, Button, Card, Container, Group, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import RecommendationTable from '@/components/RecommendationTable';
 import PortfolioBuilder from '@/components/PortfolioBuilder';
 import SimulationForm from '@/components/SimulationForm';
 import ResultsDashboard from '@/components/ResultsDashboard';
 import WalletComparison from '@/components/WalletComparison';
 import ColorSchemeToggle from '@/components/ColorSchemeToggle';
-import { BarChart3, LineChart, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
+import { AlertTriangle, BarChart3, LineChart, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
+import { errorMessage, fetchJson } from '@/lib/clientFetch';
 import type { PortfolioItem, Recommendation, SimulationResult } from '@/lib/types';
 
 const workflow = [
@@ -27,11 +28,16 @@ export default function Home() {
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [result, setResult] = useState<SimulationResult>();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string>();
 
   useEffect(() => {
     const saved = localStorage.getItem('portfolio');
     if (saved) setPortfolio(JSON.parse(saved));
-    fetch('/api/stocks?recommend=1&limit=80').then(r => r.json()).then(setRecommendations).finally(() => setLoading(false));
+    setLoadError(undefined);
+    fetchJson<Recommendation[]>('/api/stocks?recommend=1&limit=80')
+      .then(setRecommendations)
+      .catch(error => setLoadError(errorMessage(error)))
+      .finally(() => setLoading(false));
   }, []);
 
   const add = (r: Recommendation) => setPortfolio(p => p.some(x => x.ticker === r.ticker) ? p : [...p, { ticker: r.ticker, name: r.companyName, allocation: p.length ? 0 : 100 }]);
@@ -95,6 +101,10 @@ export default function Home() {
           </Card>)}
         </SimpleGrid>
       </Box>
+
+      {loadError && <Alert color="red" variant="light" radius="lg" icon={<AlertTriangle size={18} />} title="Não foi possível carregar as recomendações">
+        {loadError} A simulação e o comparador de carteiras dependem dos mesmos dados e podem falhar até que a fonte volte a responder.
+      </Alert>}
 
       <Stack gap="lg">
         <Box id="portfolio-builder"><PortfolioBuilder items={portfolio} setItems={setPortfolio}/></Box>

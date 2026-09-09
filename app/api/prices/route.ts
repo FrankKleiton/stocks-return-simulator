@@ -1,3 +1,10 @@
-import { NextResponse } from 'next/server';
 import { fetchPrices } from '@/lib/statusInvest';
-export async function GET(req: Request) { const u = new URL(req.url); return NextResponse.json(await fetchPrices(u.searchParams.get('ticker') || '', u.searchParams.get('start') || undefined, u.searchParams.get('end') || undefined)); }
+import { BadRequestError, handleApiRequest } from '@/lib/apiRoute';
+export async function GET(req: Request) {
+  const u = new URL(req.url);
+  const ticker = u.searchParams.get('ticker') || '';
+  return handleApiRequest(async () => {
+    if (!ticker) throw new BadRequestError('ticker is required');
+    return fetchPrices(ticker, u.searchParams.get('start') || undefined, u.searchParams.get('end') || undefined);
+  });
+}

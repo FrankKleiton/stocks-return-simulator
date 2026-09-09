@@ -1,4 +1,5 @@
 import { cached, retry } from './cache';
+import { UpstreamError } from './upstreamError';
 import type { AnnualEarningsPoint, AnnualFcfPoint, EarningsDataAdapter, FcfDataAdapter } from './fcfValuation';
 import type { DividendPoint, IndicatorPoint, PricePoint, StockSummary } from './types';
 
@@ -25,8 +26,10 @@ type StatusInvestRequestInit = RequestInit & { next?: { revalidate?: number } };
 async function getJson<T>(url: string, init?: StatusInvestRequestInit) {
   const defaultCache = init?.cache === 'no-store' || init?.next ? {} : { next: { revalidate: 3600 } };
   const r = await fetch(url, { ...defaultCache, ...init, headers: { ...headers, ...(init?.headers || {}) } });
-  if (!r.ok) throw new Error(`${r.status} ${url}`);
-  return r.json() as Promise<T>;
+  // Cloudflare marks bot-challenge responses with this header; the body is an HTML interstitial, not JSON.
+  const challenge = r.headers?.get?.('cf-mitigated') === 'challenge';
+  if (!r.ok) throw new UpstreamError(r.status, url, { challenge });
+  try { return await r.json() as T; } catch { throw new UpstreamError(r.status, url, { challenge }); }
 }
 
 export async function fetchStockList(): Promise<StockSummary[]> {
