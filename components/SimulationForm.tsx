@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Alert, Button, Card, NumberInput, Select, SimpleGrid, Stack, TextInput, Title } from '@mantine/core';
 import { AlertTriangle } from 'lucide-react';
 import { errorMessage, fetchJson } from '@/lib/clientFetch';
@@ -50,8 +50,13 @@ export default function SimulationForm({ holdings, onResult, onRunningChange }: 
     if (saved) setValues(current => ({ ...current, ...JSON.parse(saved) }));
   }, []);
 
-  async function submit(form: FormData) {
-    const input = simulationInputFromForm(form, holdings);
+  // A plain submit handler, not a React 19 form `action`: actions run inside a
+  // transition, so state set there only commits once the request finishes and
+  // the loading state would never be shown.
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (running) return;
+    const input = simulationInputFromForm(new FormData(event.currentTarget), holdings);
     localStorage.setItem(simulatorStorageKey, JSON.stringify({
       startDate: input.startDate,
       endDate: input.endDate,
@@ -75,7 +80,7 @@ export default function SimulationForm({ holdings, onResult, onRunningChange }: 
   return <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
     <Stack gap="md">
       <Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Simulador histórico</Title>
-      <form action={submit}>
+      <form onSubmit={submit}>
         <Stack gap="sm">
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 1 }} spacing="sm">
             <TextInput label="Data inicial" name="startDate" type="date" value={values.startDate} onChange={event => {
