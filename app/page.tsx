@@ -23,6 +23,7 @@ const highlights = [
 export default function Home() {
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [result, setResult] = useState<SimulationResult>();
+  const [running, setRunning] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('portfolio');
@@ -90,8 +91,8 @@ export default function Home() {
 
       <Stack gap="lg">
         <Box id="portfolio-builder"><PortfolioBuilder items={portfolio} setItems={setPortfolio}/></Box>
-        <SimulationForm holdings={portfolio} onResult={setResult}/>
-        <ResultsDashboard result={result}/>
+        <SimulationForm holdings={portfolio} onResult={setResult} onRunningChange={setRunning}/>
+        <ResultsDashboard result={result} loading={running}/>
       </Stack>
       <Text pb="xl" size="xs" c="dimmed">Apenas para fins educacionais. Os resultados são aproximações históricas, não são conselhos de investimento.</Text>
     </Stack>

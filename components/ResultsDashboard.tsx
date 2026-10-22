@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Card, Loader, LoadingOverlay, SimpleGrid, Stack, Text } from '@mantine/core';
 import type { SimulationResult } from '@/lib/types';
 import { brl, pct } from '@/lib/metrics';
 import PortfolioCharts from './Charts/PortfolioCharts';
@@ -29,14 +29,32 @@ function ResultMetric({ label, value }: { label: string; value: string }) {
   </Card>;
 }
 
-export default function ResultsDashboard({ result }: { result?: SimulationResult }) {
-  if (!result) return null;
+const loadingTitle = 'Rodando a simulação…';
+const loadingHint = 'Buscando preços e proventos no Investidor10. A primeira simulação de uma ação pode levar alguns segundos.';
 
-  return <Stack gap="md">
-    <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="md">
-      {resultCards(result).map(([label, value]) => <ResultMetric key={label} label={label} value={value} />)}
-    </SimpleGrid>
-    <PortfolioCharts result={result}/>
-    <ResultTables result={result}/>
-  </Stack>;
+function LoadingPlaceholder() {
+  return <Card withBorder shadow="md" radius="lg" p="xl" role="status" aria-live="polite">
+    <Stack align="center" gap="sm" py="lg">
+      <Loader size="lg" />
+      <Text fw={800} fz="lg">{loadingTitle}</Text>
+      <Text size="sm" c="dimmed" ta="center" maw={420}>{loadingHint}</Text>
+    </Stack>
+  </Card>;
+}
+
+export default function ResultsDashboard({ result, loading = false }: { result?: SimulationResult; loading?: boolean }) {
+  if (!result) return loading ? <LoadingPlaceholder /> : null;
+
+  // Re-running keeps the previous results visible but dimmed, so the numbers do not jump around mid-request.
+  return <Box pos="relative">
+    <LoadingOverlay visible={loading} zIndex={10} overlayProps={{ radius: 'lg', blur: 2 }}
+      loaderProps={{ children: <Stack align="center" gap="xs" role="status" aria-live="polite"><Loader size="lg" /><Text fw={700}>{loadingTitle}</Text></Stack> }} />
+    <Stack gap="md" aria-busy={loading}>
+      <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="md">
+        {resultCards(result).map(([label, value]) => <ResultMetric key={label} label={label} value={value} />)}
+      </SimpleGrid>
+      <PortfolioCharts result={result}/>
+      <ResultTables result={result}/>
+    </Stack>
+  </Box>;
 }

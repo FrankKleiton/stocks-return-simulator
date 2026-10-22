@@ -33,7 +33,14 @@ function simulationInputFromForm(form: FormData, holdings: PortfolioItem[]): Sim
   };
 }
 
-export default function SimulationForm({ holdings, onResult }: { holdings: PortfolioItem[]; onResult: (r: SimulationResult) => void }) {
+interface SimulationFormProps {
+  holdings: PortfolioItem[];
+  onResult: (result: SimulationResult) => void;
+  /** Lets the page mirror the request state elsewhere (e.g. a loading state on the results). */
+  onRunningChange?: (running: boolean) => void;
+}
+
+export default function SimulationForm({ holdings, onResult, onRunningChange }: SimulationFormProps) {
   const [values, setValues] = useState(defaultSimulatorValues);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string>();
@@ -53,6 +60,7 @@ export default function SimulationForm({ holdings, onResult }: { holdings: Portf
       dividendMode: input.dividendMode
     }));
     setRunning(true);
+    onRunningChange?.(true);
     setError(undefined);
     try {
       onResult(await fetchJson<SimulationResult>('/api/simulate', { method: 'POST', body: JSON.stringify(input) }));
@@ -60,6 +68,7 @@ export default function SimulationForm({ holdings, onResult }: { holdings: Portf
       setError(errorMessage(e));
     } finally {
       setRunning(false);
+      onRunningChange?.(false);
     }
   }
 
@@ -82,7 +91,7 @@ export default function SimulationForm({ holdings, onResult }: { holdings: Portf
           </SimpleGrid>
           <Select label="Dividendos" name="dividendMode" value={values.dividendMode} onChange={value => setValues(current => ({ ...current, dividendMode: (value ?? 'reinvest') as DividendMode }))} data={dividendModeOptions}/>
           {error && <Alert color="red" variant="light" icon={<AlertTriangle size={18} />} title="A simulação falhou">{error}</Alert>}
-          <Button type="submit" fullWidth loading={running} disabled={!holdings.length}>Rodar simulação</Button>
+          <Button type="submit" fullWidth loading={running} disabled={!holdings.length}>{running ? 'Rodando simulação…' : 'Rodar simulação'}</Button>
         </Stack>
       </form>
     </Stack>
