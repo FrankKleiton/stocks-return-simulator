@@ -1,15 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Alert, Badge, Box, Button, Card, Container, Group, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
-import RecommendationTable from '@/components/RecommendationTable';
+import { Badge, Box, Button, Card, Container, Group, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import PortfolioBuilder from '@/components/PortfolioBuilder';
 import SimulationForm from '@/components/SimulationForm';
 import ResultsDashboard from '@/components/ResultsDashboard';
-import WalletComparison from '@/components/WalletComparison';
 import ColorSchemeToggle from '@/components/ColorSchemeToggle';
-import { AlertTriangle, BarChart3, LineChart, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
-import { errorMessage, fetchJson } from '@/lib/clientFetch';
-import type { PortfolioItem, Recommendation, SimulationResult } from '@/lib/types';
+import { BarChart3, LineChart, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
+import type { PortfolioItem, SimulationResult } from '@/lib/types';
 
 const workflow = [
   { step: '01', title: 'Montar', description: 'Crie uma carteira e defina as alocações.', icon: WalletCards },
@@ -24,30 +21,20 @@ const highlights = [
 ];
 
 export default function Home() {
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [result, setResult] = useState<SimulationResult>();
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string>();
 
   useEffect(() => {
     const saved = localStorage.getItem('portfolio');
     if (saved) setPortfolio(JSON.parse(saved));
-    setLoadError(undefined);
-    fetchJson<Recommendation[]>('/api/stocks?recommend=1&limit=80')
-      .then(setRecommendations)
-      .catch(error => setLoadError(errorMessage(error)))
-      .finally(() => setLoading(false));
   }, []);
-
-  const add = (r: Recommendation) => setPortfolio(p => p.some(x => x.ticker === r.ticker) ? p : [...p, { ticker: r.ticker, name: r.companyName, allocation: p.length ? 0 : 100 }]);
 
   return <Container size="xl" px={{ base: 'xs', sm: 'md', lg: 'xl' }} py={{ base: 'md', sm: 'xl' }}>
     <Stack gap="xl">
       <Box component="header" className="hero-shell" p={{ base: 'md', sm: 'xl' }}>
         <Group justify="space-between" align="center" gap="md" mb="xl">
           <Group gap="xs">
-            <Badge color="cyber" variant="light" size="lg">Dados do Status Invest</Badge>
+            <Badge color="cyber" variant="light" size="lg">Dados do Investidor10</Badge>
             <Badge color="plasma" variant="light" size="lg">Análises com Chart.js</Badge>
             <Badge color="matrix" variant="light" size="lg">Simulador de dividendos</Badge>
           </Group>
@@ -63,8 +50,7 @@ export default function Home() {
             <Title className="hero-title" order={1} fz={{ base: 38, sm: 58, md: 78 }} lh={0.94}>Invista com mais clareza histórica</Title>
             <Text maw={760} c="dimmed" fz={{ base: 'md', sm: 'xl' }} lh={1.65}>Monte carteiras de ações brasileiras, faça backtests de cenários com dividendos e analise sinais transparentes de qualidade, valuation e fluxo de caixa livre histórico em um só lugar.</Text>
             <Group gap="sm">
-              <Button size="md" radius="xl" onClick={() => document.getElementById('recommendations')?.scrollIntoView({ behavior: 'smooth' })}>Explorar recomendações</Button>
-              <Button size="md" radius="xl" variant="light" color="gray" onClick={() => document.getElementById('portfolio-builder')?.scrollIntoView({ behavior: 'smooth' })}>Montar carteira</Button>
+              <Button size="md" radius="xl" onClick={() => document.getElementById('portfolio-builder')?.scrollIntoView({ behavior: 'smooth' })}>Montar carteira</Button>
             </Group>
           </Stack>
 
@@ -102,18 +88,12 @@ export default function Home() {
         </SimpleGrid>
       </Box>
 
-      {loadError && <Alert color="red" variant="light" radius="lg" icon={<AlertTriangle size={18} />} title="Não foi possível carregar as recomendações">
-        {loadError} A simulação e o comparador de carteiras dependem dos mesmos dados e podem falhar até que a fonte volte a responder.
-      </Alert>}
-
       <Stack gap="lg">
         <Box id="portfolio-builder"><PortfolioBuilder items={portfolio} setItems={setPortfolio}/></Box>
         <SimulationForm holdings={portfolio} onResult={setResult}/>
         <ResultsDashboard result={result}/>
-        <WalletComparison data={recommendations} loading={loading}/>
-        <Box id="recommendations"><RecommendationTable data={recommendations} loading={loading} onAdd={add}/></Box>
       </Stack>
-      <Text pb="xl" size="xs" c="dimmed">Apenas para fins educacionais. As recomendações são sugestões do modelo, não são conselhos de investimento.</Text>
+      <Text pb="xl" size="xs" c="dimmed">Apenas para fins educacionais. Os resultados são aproximações históricas, não são conselhos de investimento.</Text>
     </Stack>
   </Container>;
 }

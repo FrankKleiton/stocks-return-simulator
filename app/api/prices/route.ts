@@ -1,4 +1,4 @@
-import { fetchPrices } from '@/lib/statusInvest';
+import { fetchPrices } from '@/lib/investidor10';
 import { BadRequestError, handleApiRequest } from '@/lib/apiRoute';
 export async function GET(req: Request) {
   const u = new URL(req.url);

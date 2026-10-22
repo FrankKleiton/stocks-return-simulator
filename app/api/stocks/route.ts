@@ -1,4 +1,4 @@
-import { fetchStockList } from '@/lib/statusInvest';
+import { fetchStockList } from '@/lib/investidor10';
 import { getRecommendations } from '@/lib/scoring';
 import { handleApiRequest } from '@/lib/apiRoute';
 export async function GET(req: Request) {

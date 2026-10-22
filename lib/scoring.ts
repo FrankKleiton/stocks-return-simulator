@@ -1,6 +1,6 @@
 import { avg, cagr, clamp, stdev } from './metrics';
-import { fetchDividends, fetchIndicators, fetchStockList } from './statusInvest';
-import type { Recommendation } from './types';
+import { fetchDividendsMany, fetchIndicatorsMany, fetchStockList } from './investidor10';
+import type { DividendPoint, IndicatorPoint, Recommendation, StockSummary } from './types';
 
 type ScoredRecommendation = Recommendation & {
   _profitabilityScore: number;
@@ -9,8 +9,7 @@ type ScoredRecommendation = Recommendation & {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-export async function scoreTicker(base: Awaited<ReturnType<typeof fetchStockList>>[number]): Promise<ScoredRecommendation> {
-  const [indicators, dividends] = await Promise.allSettled([fetchIndicators(base.ticker), fetchDividends(base.ticker)]).then(r => [r[0].status==='fulfilled'?r[0].value:[], r[1].status==='fulfilled'?r[1].value:[]] as const);
+export function scoreTicker(base: StockSummary, indicators: IndicatorPoint[] = [], dividends: DividendPoint[] = []): ScoredRecommendation {
   const roes = indicators.map(i => i.roe || 0).filter(Boolean);
   const roics = indicators.map(i => i.roic || 0).filter(Boolean);
   const earnings = indicators.map(i => i.earnings || 0).filter(Boolean);
@@ -72,9 +71,14 @@ export async function getRecommendations(limit = 80): Promise<Recommendation[]> 
     .filter(s => s.price > 0 && s.roic > 0 && (s.evEbit > 0 || s.pL > 0))
     .sort((a,b)=>b.liquidity-a.liquidity)
     .slice(0, limit);
-  const chunks: ScoredRecommendation[] = [];
-  for (let i=0; i<liquid.length; i+=8) chunks.push(...await Promise.all(liquid.slice(i,i+8).map(scoreTicker)));
-  const eligible = chunks;
+  const tickers = liquid.map(s => s.ticker);
+  // Each ticker costs one page fetch on Investidor10, so history is loaded with bounded concurrency.
+  // Missing history degrades a ticker's score instead of failing the whole ranking.
+  const [indicators, dividends] = await Promise.all([
+    fetchIndicatorsMany(tickers).catch(() => new Map<string, IndicatorPoint[]>()),
+    fetchDividendsMany(tickers).catch(() => new Map<string, DividendPoint[]>())
+  ]);
+  const eligible = liquid.map(s => scoreTicker(s, indicators.get(s.ticker) ?? [], dividends.get(s.ticker) ?? []));
 
   const roeRank = rankDescending(eligible, s => s.roe);
   const earningsYieldRank = rankDescending(eligible, s => s.earningsYield);

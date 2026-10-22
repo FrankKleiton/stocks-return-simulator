@@ -1,4 +1,4 @@
-import { fetchDividends, fetchPrices } from './statusInvest';
+import { fetchDividends, fetchPrices } from './investidor10';
 import type { DividendPoint, HoldingResult, PortfolioItem, PricePoint, SimulationInput, SimulationResult, TimePoint, Transaction } from './types';
 
 type MarketData = Record<string, { prices: PricePoint[]; dividends: DividendPoint[] }>;
