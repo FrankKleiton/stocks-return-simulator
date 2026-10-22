@@ -2,12 +2,15 @@
  * Investidor10 (https://investidor10.com.br) data source.
  *
  * Investidor10 has no public API and needs no token. Prices, yearly indicators and annual statements come
- * from the JSON endpoints its stock pages call; dividends, company ids, sector and liquidity are parsed from
- * the server-rendered ticker page, and the stock universe from the market-cap ranking. Everything is cached
- * in memory because the ticker page alone weighs ~2 MB and the site has no documented rate limit.
+ * from the JSON endpoints its asset pages call; dividends, ids, sector and liquidity are parsed from the
+ * server-rendered ticker page, and the stock universe from the market-cap ranking. Everything is cached in
+ * memory because a ticker page alone weighs 2-4 MB and the site has no documented rate limit.
+ *
+ * Three sections of the site are supported, each with its own page layout and JSON endpoints:
+ * B3 shares (`/acoes/petr4/`), US stocks (`/stocks/aapl/`, quoted in US$) and real-estate funds (`/fiis/xpml11/`).
  */
 import { cached, retry } from './cache';
-import { UpstreamError } from './upstreamError';
+import { isUpstreamError, UpstreamError } from './upstreamError';
 import type { AnnualEarningsPoint, EarningsDataAdapter } from './earningsValuation';
 import type { DividendPoint, IndicatorPoint, PricePoint, StockSummary } from './types';
 
@@ -41,11 +44,30 @@ export function ptNumber(text: unknown): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
+/** Parses abbreviated pt-BR figures ("R$ 25,94 M", "R$ 6,90 Bilhões", "1,2 mil") into plain numbers. */
+export function abbreviatedNumber(text: unknown): number | undefined {
+  const s = String(text ?? '').trim();
+  const value = ptNumber(s);
+  if (value === undefined) return undefined;
+  const unit = s.match(/\d\s*([a-záéíóúãõç]+)\.?\s*$/i)?.[1]?.toLowerCase() ?? '';
+  const scale = /^(mil|k)$/.test(unit) ? 1e3 : /^(m|mi|milh)/.test(unit) ? 1e6 : /^(b|bi|bilh)/.test(unit) ? 1e9 : /^(t|tri|trilh)/.test(unit) ? 1e12 : 1;
+  return value * scale;
+}
+
+/**
+ * Indicator-history values arrive as numbers, as pt-BR strings ("2,83") on B3 pages or as en-US strings ("39.19")
+ * on US stock pages. Strings without a comma are read as en-US; the series only hold ratios, so thousands never occur.
+ */
+export const historyNumber = (value: unknown): number | undefined =>
+  typeof value === 'string' && !value.includes(',') ? ptNumber(value.replace('.', ',')) : ptNumber(value);
+
 /** "DD/MM/YYYY[ HH:mm]" → "YYYY-MM-DD"; anything else → "". */
 export const brDate = (text: unknown): string => {
   const m = String(text ?? '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
 };
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
 const decodeEntities = (s: string) => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
 const stripTags = (html: string) => decodeEntities(html.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
@@ -136,35 +158,129 @@ async function getJson<T>(path: string): Promise<T | null> {
 const unexpectedFormat = (url: string, what: string) => new UpstreamError(200, url, { code: 'UNEXPECTED_FORMAT', message: what });
 
 // ---------------------------------------------------------------------------------------------
+// Asset kinds and their endpoints
+// ---------------------------------------------------------------------------------------------
+
+/** Section of the site a ticker lives in: B3 share (`/acoes/`), US stock (`/stocks/`) or real-estate fund (`/fiis/`). */
+export type AssetKind = 'acao' | 'stock' | 'fii';
+const ALL_KINDS: AssetKind[] = ['acao', 'stock', 'fii'];
+
+interface Endpoints {
+  page: (ticker: string) => string;
+  /** Price chart; `false` asks for quotes adjusted for splits only, the simulator models dividends itself. */
+  chart: (company: CompanyPage, days: number) => string;
+  history: (id: number, years: number) => string;
+  /** Yearly income statement (DRE); FIIs publish none. */
+  statement?: (id: number, years: number) => string;
+}
+
+const ENDPOINTS: Record<AssetKind, Endpoints> = {
+  acao: {
+    page: ticker => `/acoes/${ticker.toLowerCase()}/`,
+    chart: (company, days) => `/api/cotacoes/acao/chart/${company.ticker.toLowerCase()}/${days}/false/real/`,
+    history: (id, years) => `/api/historico-indicadores/${id}/${years}/?v=2`,
+    statement: (id, years) => `/api/balancos/balancoresultados/chart/${id}/${years}/yearly/`
+  },
+  stock: {
+    page: ticker => `/stocks/${ticker.toLowerCase()}/`,
+    chart: (company, days) => `/api/stock/cotacoes/chart/${company.tickerId}/${days}/false/`,
+    history: (id, years) => `/api/stock/historico-indicadores/${id}/${years}/`,
+    statement: (id, years) => `/api/international/balancos/balancoresultados/chart/${id}/${years}/yearly/`
+  },
+  fii: {
+    page: ticker => `/fiis/${ticker.toLowerCase()}/`,
+    chart: (company, days) => `/api/fii/cotacoes/chart/${company.tickerId}/${days}/false/real/`,
+    history: (id, years) => `/api/fii/historico-indicadores/${id}/${years}/`
+  }
+};
+
+/**
+ * Sections that may list a ticker, most likely first; the rest are tried when the site answers "gone".
+ * Letters only is a US stock; a "11"-"13" suffix is usually a FII but also a B3 unit (TAEE11); anything else a B3 share.
+ */
+export function candidateKinds(ticker: string): AssetKind[] {
+  const t = normalizeTicker(ticker);
+  const preferred: AssetKind[] = /^[A-Z]+$/.test(t) ? ['stock'] : /^[A-Z]{4}1[1-3]$/.test(t) ? ['fii', 'acao'] : ['acao'];
+  return [...preferred, ...ALL_KINDS.filter(kind => !preferred.includes(kind))];
+}
+
+// ---------------------------------------------------------------------------------------------
 // Ticker page: ids, company info and dividends
 // ---------------------------------------------------------------------------------------------
 
 export interface CompanyPage {
   ticker: string;
-  /** Id used by `/api/historico-indicadores/{tickerId}`. */
+  kind: AssetKind;
+  /** Id of the indicator-history endpoint: the ticker id of a B3 share, or the stock/fund id. */
   tickerId: number;
-  /** Id used by the `/api/balancos/.../chart/{companyId}` statement endpoints. */
+  /** Id of the statement endpoints: the company id of a B3 share, the stock id of a US stock, 0 for a FII. */
   companyId: number;
   name: string;
   sector?: string;
   segment?: string;
-  /** "Liquidez Média Diária" in R$. */
+  /** Average daily traded volume (R$, or US$ for US stocks). */
   liquidity: number;
-  /** "Valor de mercado" in R$. */
+  /** Market cap (R$, or US$ for US stocks); FII pages do not print it, so it is 0 there. */
   marketCap: number;
   dividends: DividendPoint[];
 }
 
-const tickerPath = (ticker: string) => `/acoes/${ticker.toLowerCase()}/`;
+type PageFacts = Omit<CompanyPage, 'ticker' | 'kind' | 'dividends'>;
 
-/** Reads a "Dados da empresa" cell by its label, preferring the exact figure over the abbreviated one. */
+const pageTitle = (html: string) => stripTags(html.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? '');
+
+/** Reads a company-data cell by its label, preferring the exact figure over the abbreviated one (B3 and US stock pages). */
 function companyCell(html: string, label: string): string | undefined {
-  const m = html.match(new RegExp(`<span class="title">\\s*${label}\\s*</span>[\\s\\S]*?<span class="value">([\\s\\S]*?)</span>`));
+  const m = html.match(new RegExp(`class="title">\\s*${escapeRe(label)}\\s*</(?:span|h3)>[\\s\\S]*?(?:<span class="value">([\\s\\S]*?)</span>|<h4 class="value">([\\s\\S]*?)</h4>)`));
   if (!m) return undefined;
-  const detail = m[1].match(/detail-value">([^<]*)</)?.[1];
-  const text = stripTags(detail ?? m[1]);
+  const value = m[1] ?? m[2] ?? '';
+  const detail = value.match(/detail-value">([^<]*)</)?.[1];
+  const text = stripTags(detail ?? value);
   return text || undefined;
 }
+
+/** Reads a cell of the FII information table ("SEGMENTO", "TIPO DE FUNDO", ...). */
+function fiiCell(html: string, label: string): string | undefined {
+  const m = html.match(new RegExp(`name">\\s*${escapeRe(label)}\\s*</span>\\s*<div class="value">([\\s\\S]*?)</div>`, 'i'));
+  return m ? stripTags(m[1]) || undefined : undefined;
+}
+
+/** Reads one of the summary cards at the top of a FII page ("Liquidez Diária", "P/VP", ...); figures are abbreviated. */
+function tickerCard(html: string, title: string): string | undefined {
+  const m = html.match(new RegExp(`<span title="${escapeRe(title)}">[\\s\\S]*?_card-body">\\s*(?:<div>\\s*)?<span[^>]*>([^<]*)<`));
+  return m ? stripTags(m[1]) || undefined : undefined;
+}
+
+const PAGE_PARSERS: Record<AssetKind, (html: string) => PageFacts | undefined> = {
+  acao: html => {
+    const tickerId = Number(html.match(/tickerId:\s*(\d+)/)?.[1] ?? html.match(/const tickerId = '(\d+)'/)?.[1]);
+    const companyId = Number(html.match(/const companyId = '(\d+)'/)?.[1]);
+    if (!tickerId || !companyId) return undefined;
+    return {
+      tickerId, companyId, name: pageTitle(html).match(/^[A-Z0-9]+\s*-\s*(.*?)\s*-/)?.[1] ?? '',
+      sector: companyCell(html, 'Setor'), segment: companyCell(html, 'Segmento'),
+      liquidity: ptNumber(companyCell(html, 'Liquidez Média Diária')) ?? 0, marketCap: ptNumber(companyCell(html, 'Valor de mercado')) ?? 0
+    };
+  },
+  stock: html => {
+    const id = Number(html.match(/"stockId":\s*(\d+)/)?.[1] ?? html.match(/__interBalanceHistory\s*=\s*\{\s*companyId:\s*(\d+)/)?.[1]);
+    if (!id) return undefined;
+    return {
+      tickerId: id, companyId: id, name: pageTitle(html).match(/^Stock\s+(.*?)\s+-\s+Stock\s+/)?.[1] ?? '',
+      sector: companyCell(html, 'Setor'), segment: companyCell(html, 'Indústria'),
+      liquidity: ptNumber(companyCell(html, 'Volume Médio de Negociações Diária')) ?? 0, marketCap: ptNumber(companyCell(html, 'Valor de mercado')) ?? 0
+    };
+  },
+  fii: html => {
+    const id = Number(html.match(/front-fii-show\.js[^>]*data-id\s*=\s*'(\d+)'/)?.[1] ?? html.match(/id="btn-rate-fii"\s+data-company-id="(\d+)"/)?.[1] ?? html.match(/api\('cotacao',\s*'fii',\s*'(\d+)'\)/)?.[1]);
+    if (!id) return undefined;
+    return {
+      tickerId: id, companyId: 0, name: fiiCell(html, 'Razão Social') ?? '',
+      sector: fiiCell(html, 'TIPO DE FUNDO'), segment: fiiCell(html, 'SEGMENTO'),
+      liquidity: abbreviatedNumber(tickerCard(html, 'Liquidez Diária')) ?? 0, marketCap: 0
+    };
+  }
+};
 
 /** `date` is the data-com (last day a buyer still receives the payout); rows without a payment date are still pending and skipped. */
 export function parseDividendTable(ticker: string, html: string): DividendPoint[] {
@@ -179,26 +295,30 @@ export function parseDividendTable(ticker: string, html: string): DividendPoint[
     .sort((a, b) => a.paymentDate.localeCompare(b.paymentDate) || a.date.localeCompare(b.date));
 }
 
-export function parseCompanyPage(ticker: string, html: string, url = tickerPath(ticker)): CompanyPage {
+/** The dividend table has the same layout on every kind of page; ids and company facts differ per kind. */
+export function parseCompanyPage(ticker: string, html: string, kind: AssetKind = 'acao', url = `${baseUrl()}${ENDPOINTS[kind].page(ticker)}`): CompanyPage {
   const t = normalizeTicker(ticker);
-  const tickerId = Number(html.match(/tickerId:\s*(\d+)/)?.[1] ?? html.match(/const tickerId = '(\d+)'/)?.[1]);
-  const companyId = Number(html.match(/const companyId = '(\d+)'/)?.[1]);
-  if (!tickerId || !companyId) throw unexpectedFormat(url, 'página sem os identificadores da empresa');
-  const title = stripTags(html.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? '');
-  const name = title.match(/^[A-Z0-9]+\s*-\s*(.*?)\s*-/)?.[1] ?? '';
-  return {
-    ticker: t, tickerId, companyId, name,
-    sector: companyCell(html, 'Setor'),
-    segment: companyCell(html, 'Segmento'),
-    liquidity: ptNumber(companyCell(html, 'Liquidez Média Diária')) ?? 0,
-    marketCap: ptNumber(companyCell(html, 'Valor de mercado')) ?? 0,
-    dividends: parseDividendTable(t, html)
-  };
+  const facts = PAGE_PARSERS[kind](html);
+  if (!facts) throw unexpectedFormat(url, 'página sem os identificadores da empresa');
+  return { ticker: t, kind, ...facts, dividends: parseDividendTable(t, html) };
 }
 
+/** Finds the ticker in the most likely section of the site; "gone" answers move on to the next section. */
 export async function fetchCompany(ticker: string): Promise<CompanyPage> {
   const t = normalizeTicker(ticker);
-  return cached(`company-${t}`, 12 * HOUR, async () => parseCompanyPage(t, await retry(() => getHtml(tickerPath(t))), `${baseUrl()}${tickerPath(t)}`));
+  return cached(`company-${t}`, 12 * HOUR, async () => {
+    let notFound: unknown;
+    for (const kind of candidateKinds(t)) {
+      const path = ENDPOINTS[kind].page(t);
+      try {
+        return parseCompanyPage(t, await retry(() => getHtml(path)), kind, `${baseUrl()}${path}`);
+      } catch (error) {
+        if (!isUpstreamError(error) || error.status !== 404) throw error;
+        notFound = error;
+      }
+    }
+    throw notFound;
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -206,14 +326,16 @@ export async function fetchCompany(ticker: string): Promise<CompanyPage> {
 // ---------------------------------------------------------------------------------------------
 
 export interface ChartPoint { price?: number | null; created_at?: string | null }
-interface ChartResponse { real?: ChartPoint[] }
+/** B3 shares and FIIs answer `{ real, dolar, euro }`; US stocks answer a bare array (in US$). */
+export type ChartResponse = { real?: ChartPoint[] } | ChartPoint[];
 
 const isWeekend = (date: string) => { const day = new Date(`${date}T00:00:00Z`).getUTCDay(); return day === 0 || day === 6; };
 
 /** The chart repeats Friday's quote on weekends; those are dropped so the series only holds trading days (last entry per day wins). */
-export function parsePrices(rows: ChartPoint[] | null | undefined, start?: string, end?: string): PricePoint[] {
+export function parsePrices(chart: ChartResponse | null | undefined, start?: string, end?: string): PricePoint[] {
+  const rows = Array.isArray(chart) ? chart : chart?.real ?? [];
   const byDate = new Map<string, number>();
-  for (const row of rows ?? []) {
+  for (const row of rows) {
     const date = brDate(row.created_at);
     const price = num(row.price);
     if (!date || price <= 0 || isWeekend(date) || (start && date < start) || (end && date > end)) continue;
@@ -222,14 +344,12 @@ export function parsePrices(rows: ChartPoint[] | null | undefined, start?: strin
   return [...byDate].map(([date, price]) => ({ date, price })).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-/** `false` in the path asks for quotes adjusted for splits only; the simulator models dividends itself. */
-const chartPath = (ticker: string, days: number) => `/api/cotacoes/acao/chart/${ticker.toLowerCase()}/${days}/false/real/`;
-
+/** The chart endpoint depends on the kind of asset (and on its id for stocks and FIIs), so the ticker page is loaded first. */
 export async function fetchPrices(ticker: string, start?: string, end?: string): Promise<PricePoint[]> {
   const t = normalizeTicker(ticker);
   const all = await cached(`prices-${t}`, DAY, async () => {
-    const json = await retry(() => getJson<ChartResponse>(chartPath(t, MAX_PRICE_DAYS)));
-    return parsePrices(json?.real);
+    const company = await fetchCompany(t);
+    return parsePrices(await retry(() => getJson<ChartResponse>(ENDPOINTS[company.kind].chart(company, MAX_PRICE_DAYS))));
   });
   return start || end ? all.filter(p => (!start || p.date >= start) && (!end || p.date <= end)) : all;
 }
@@ -250,11 +370,22 @@ export async function fetchDividendsMany(tickers: string[]): Promise<Map<string,
 // Indicator history and annual statements
 // ---------------------------------------------------------------------------------------------
 
-/** One row of `/api/historico-indicadores`: `year` is "Atual" or "YYYY"; current values may be pt-BR strings ("2,83"). */
+/**
+ * One row of an indicator-history endpoint: `year` is "Atual" or "YYYY"; values may be numbers or strings (see `historyNumber`).
+ * Labels vary slightly per kind of page ("Dividend Yield" vs "Dividend Yield (DY)", "EV/Ebit" vs "EV/EBIT"), hence `series`.
+ */
 export interface HistoryEntry { year?: string | number | null; value?: number | string | null }
 export type IndicatorHistory = Record<string, HistoryEntry[]>;
 
-const historyPath = (tickerId: number, years: number) => `/api/historico-indicadores/${tickerId}/${years}/?v=2`;
+const indicatorKey = (label: string) => label.toLowerCase().replace(/\s*\(dy\)\s*$/, '').replace(/\s+/g, ' ').trim();
+
+/** Looks a series up by label, ignoring case and the "(DY)" suffix US stock pages add. */
+function series(history: IndicatorHistory | null | undefined, label: string): HistoryEntry[] {
+  if (!history) return [];
+  const want = indicatorKey(label);
+  const key = Object.keys(history).find(k => indicatorKey(k) === want);
+  return key ? history[key] ?? [] : [];
+}
 
 /** Investidor10 publishes gross debt / equity (not net), which is what `debtEquity` carries. */
 const HISTORY_FIELDS: Array<[label: string, field: keyof IndicatorPoint]> = [
@@ -270,20 +401,19 @@ const CURRENT_FIELDS: Array<[label: string, field: keyof StockSummary]> = [
 export function currentIndicators(history: IndicatorHistory | null | undefined): Partial<StockSummary> {
   const out: Partial<StockSummary> = {};
   for (const [label, field] of CURRENT_FIELDS) {
-    const value = ptNumber(history?.[label]?.find(e => e.year === 'Atual')?.value);
+    const value = historyNumber(series(history, label).find(e => e.year === 'Atual')?.value);
     if (value !== undefined) (out as Record<string, number>)[field] = round2(value);
   }
   return out;
 }
 
 /**
- * `/api/balancos/balancoresultados/chart` returns the DRE as a table: a header row (labels, years and "AV %"/"AH %"
+ * The `balancoresultados/chart` endpoints return the DRE as a table: a header row (labels, years and "AV %"/"AH %"
  * columns) followed by rows whose money cells are `[abbreviated, exact]` pairs such as `["15,38 Bilhões", "R$ 15.384.783.000"]`.
+ * B3 rows are labelled "Receita Líquida - (R$)"; US stock rows "Receita Total - US$" and "Lucro Líquido - US$".
  */
 export type StatementTable = Array<Array<string | [string, string] | null>>;
 export interface AnnualStatement { year: number; revenue?: number; earnings?: number }
-
-const statementPath = (companyId: number, years: number) => `/api/balancos/balancoresultados/chart/${companyId}/${years}/yearly/`;
 
 export function parseStatement(table: StatementTable | null | undefined): AnnualStatement[] {
   const [header, ...rows] = table ?? [];
@@ -292,7 +422,7 @@ export function parseStatement(table: StatementTable | null | undefined): Annual
   const byYear = new Map<number, AnnualStatement>();
   for (const row of rows) {
     const label = stripTags(String(row?.[0] ?? ''));
-    const field = label.startsWith('Receita Líquida') ? 'revenue' : label.startsWith('Lucro Líquido') ? 'earnings' : undefined;
+    const field = /^Receita (Líquida|Total)\b/.test(label) ? 'revenue' : label.startsWith('Lucro Líquido') ? 'earnings' : undefined;
     if (!field) continue;
     years.forEach((year, i) => {
       const cell = row[i];
@@ -307,9 +437,9 @@ export function buildIndicators(history: IndicatorHistory | null | undefined, st
   const byYear = new Map<number, IndicatorPoint>();
   const patch = (year: number, values: Partial<IndicatorPoint>) => byYear.set(year, { ...(byYear.get(year) ?? { year }), ...values });
   for (const [label, field] of HISTORY_FIELDS) {
-    for (const entry of history?.[label] ?? []) {
+    for (const entry of series(history, label)) {
       const year = Number(entry.year);
-      const value = ptNumber(entry.value);
+      const value = historyNumber(entry.value);
       if (Number.isInteger(year) && year > 1900 && value !== undefined) patch(year, { [field]: round2(value) });
     }
   }
@@ -322,12 +452,19 @@ export function buildIndicators(history: IndicatorHistory | null | undefined, st
   return [...byYear.values()].sort((a, b) => a.year - b.year);
 }
 
-const fetchHistory = (tickerId: number, years: number) => cached(`hist-${tickerId}-${years}`, DAY, () => retry(() => getJson<IndicatorHistory>(historyPath(tickerId, years))));
-const fetchStatement = (companyId: number) => cached(`dre-${companyId}`, DAY, () => retry(() => getJson<StatementTable>(statementPath(companyId, INDICATOR_YEARS))));
+const fetchHistory = (kind: AssetKind, id: number, years: number) =>
+  cached(`hist-${kind}-${id}-${years}`, DAY, () => retry(() => getJson<IndicatorHistory>(ENDPOINTS[kind].history(id, years))));
+
+/** Resolves to null for kinds without a statement endpoint (FIIs). */
+async function fetchStatement(company: CompanyPage): Promise<StatementTable | null> {
+  const path = ENDPOINTS[company.kind].statement;
+  if (!path || !company.companyId) return null;
+  return cached(`dre-${company.kind}-${company.companyId}`, DAY, () => retry(() => getJson<StatementTable>(path(company.companyId, INDICATOR_YEARS))));
+}
 
 export async function fetchIndicators(ticker: string): Promise<IndicatorPoint[]> {
   const company = await fetchCompany(ticker);
-  const [history, statement] = await Promise.all([fetchHistory(company.tickerId, INDICATOR_YEARS), fetchStatement(company.companyId)]);
+  const [history, statement] = await Promise.all([fetchHistory(company.kind, company.tickerId, INDICATOR_YEARS), fetchStatement(company)]);
   return buildIndicators(history, statement);
 }
 
@@ -397,7 +534,7 @@ export async function fetchStockList(): Promise<StockSummary[]> {
     const current = await mapConcurrent(universe, CONCURRENCY, async (row): Promise<Partial<StockSummary>> => {
       if (!enriched.has(row.ticker)) return {};
       try {
-        return currentIndicators(await fetchHistory(row.tickerId, 1));
+        return currentIndicators(await fetchHistory('acao', row.tickerId, 1));
       } catch (error) {
         console.warn(`[investidor10] no current indicators for ${row.ticker}: ${error instanceof Error ? error.message : error}`);
         return {};
@@ -411,9 +548,10 @@ export async function fetchStockList(): Promise<StockSummary[]> {
 // Annual earnings for valuation
 // ---------------------------------------------------------------------------------------------
 
+/** FIIs publish no income statement, so they yield an empty list and the valuation reports "unavailable". */
 export async function fetchAnnualEarnings(ticker: string): Promise<AnnualEarningsPoint[]> {
   const company = await fetchCompany(ticker);
-  return parseStatement(await fetchStatement(company.companyId))
+  return parseStatement(await fetchStatement(company))
     .filter(row => row.earnings !== undefined)
     .map(row => ({ year: row.year, earnings: row.earnings as number }));
 }

@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { clearCache } from './cache';
 import { UpstreamError } from './upstreamError';
 import {
-  brDate, buildIndicators, currentIndicators, fetchAnnualEarnings, fetchCompany, fetchDividends, fetchDividendsMany, fetchIndicators,
-  fetchPrices, fetchStockList, parseCompanyPage, parseDividendTable, parsePrices, parseRankingPage, parseStatement, ptNumber, resetBackoff, toSummary,
-  type IndicatorHistory, type StatementTable
+  abbreviatedNumber, brDate, buildIndicators, candidateKinds, currentIndicators, fetchAnnualEarnings, fetchCompany, fetchDividends, fetchDividendsMany,
+  fetchIndicators, fetchPrices, fetchStockList, historyNumber, parseCompanyPage, parseDividendTable, parsePrices, parseRankingPage, parseStatement, ptNumber,
+  resetBackoff, toSummary, type IndicatorHistory, type StatementTable
 } from './investidor10';
 
 // ---------------------------------------------------------------------------------------------
@@ -29,6 +29,73 @@ const companyHtml = (ticker = 'BBAS3', tickerId = 42, companyId = 35) => `<!doct
 </tbody></table>
 <script> const getJsonPayoutIndicators = () => { const companyId = '${companyId}'; const tickerName = '${ticker}'; const tickerId = '${tickerId}'; } </script>
 </body></html>`;
+
+// Trimmed copies of the US stock page (AAPL) and FII page (XPML11) with their own markup and ids.
+const stockHtml = (ticker = 'AAPL', id = 2) => `<!doctype html><html><head>
+<title>Stock Apple - Stock ${ticker} - Resultados, Dividendos, Cotação e Indicadores - Investidor10</title></head><body>
+<section id="cards-ticker"><div class="_card cotacao"><div class="_card-body"><div class="stockCurrentQuotation"><span class="value">US$ 345,19</span><span class="real">R$ 1.739,73</span></div></div></div></section>
+<div class="table grid-3" id="table-indicators-company">
+<div class="cell"><h3 class="title">Valor de mercado</h3><span class="company-data-help">?</span><span class="value"><h4 class="simple-value">$ 5,05 Trilhões</h4><h4 class="detail-value">R$ 5.053.280.166.000</h4></span></div>
+<div class="cell"><h3 class="title">Volume Médio de Negociações Diária</h3><span class="value"><h4 class="simple-value">$ 40,39 Milhões</h4><h4 class="detail-value">R$ 40.389.000</h4></span></div>
+<div class="cell" onclick="window.location.href = '/stocks/setores/tecnologia'"><h3 class="title">Setor</h3><span class="company-data-help">?</span><h4 class="value">Tecnologia</h4></div>
+<div class="cell"><h3 class="title">Indústria</h3><h4 class="value">Equipamento de Comunicações</h4></div></div>
+<table id="table-dividends-history" class="table"><thead><tr><th><h3>tipo</h3></th><th><h3>data com</h3></th><th><h3>pagamento</h3></th><th><h3>valor</h3></th></tr></thead>
+<tbody>
+  <tr class="visible-even"><td class="text-center">Dividendos</td><td class="text-center">07/08/2026</td><td class="text-center">13/08/2026</td><td class="text-center"> 0,27000000 </td></tr>
+  <tr class="visible-odd"><td class="text-center">Dividendos</td><td class="text-center">08/05/2026</td><td class="text-center">14/05/2026</td><td class="text-center"> 0,27000000 </td></tr>
+</tbody></table>
+<script> var compareSuggestionsContext = {"stockId":${id},"type":"stock"}; </script>
+<script> window.__interBalanceHistory = { companyId: ${id}, indicatorOptions: [] }; </script>
+</body></html>`;
+
+const fiiHtml = (ticker = 'XPML11', id = 48) => `<!doctype html><html><head><title>${ticker} FII - Cotação, Dividendos, Gráficos e Resultados - Investidor10</title></head><body>
+<section id="cards-ticker" class="cards-ticker--fii">
+<div class="_card cotacao"><div class="_card-header"><div><span title="Cotação">${ticker} Cotação</span></div></div><div class="_card-body"><div><span class="value"> R$ 104,90 </span></div></div></div>
+<div class="_card vp"><div class="_card-header"><div><span title="P/VP">P/VP</span></div></div><div class="_card-body"><span>0,98</span></div></div>
+<div class="_card val"><div class="_card-header"><div><span title="Liquidez Diária">Liquidez Diária</span></div></div><div class="_card-body"><span>R$ 25,94 M</span></div></div>
+</section>
+<div id="table-indicators" class="table table-info-fii">
+<div class='cell'><div class="desc"><span class="d-flex justify-content-between align-items-center name"> Razão Social </span><div class="value"><span> XP Malls Fundo de Investimento Imobiliario - Fii </span></div></div></div>
+<div class='cell'><div class="desc"><span class="d-flex justify-content-between align-items-center name"> SEGMENTO </span><div class="value"><span> Shoppings / Varejo </span></div></div></div>
+<div class='cell'><div class="desc"><span class="d-flex justify-content-between align-items-center name"> TIPO DE FUNDO </span><div class="value"><span> Fundo de Tijolo </span></div></div></div>
+<div class='cell'><div class="desc"><span class="d-flex justify-content-between align-items-center name"> VALOR PATRIMONIAL </span><div class="value"><span> R$ 6,90 Bilhões </span></div></div></div>
+</div>
+<table id="table-dividends-history" class="table"><thead><tr><th><h3>tipo</h3></th><th><h3>data com</h3></th><th><h3>pagamento</h3></th><th><h3>valor</h3></th></tr></thead>
+<tbody>
+  <tr class="visible-even"><td class="text-center">Dividendos</td><td class="text-center">16/10/2026</td><td class="text-center">23/10/2026</td><td class="text-center"> 0,92000000 </td></tr>
+  <tr class="visible-odd"><td class="text-center">Dividendos</td><td class="text-center">18/09/2026</td><td class="text-center">25/09/2026</td><td class="text-center"> 0,92000000 </td></tr>
+</tbody></table>
+<button type="button" class="btn-default black" id="btn-rate-fii" data-company-id="${id}">Avaliar</button>
+<script src="/assets/front/templates/js/front-fii-show.js?id=cab26" data-id = '${id}' data-data_select = '[{"id":"Valor de Mercado","text":"Valor de Mercado"}]'></script>
+</body></html>`;
+
+/** The "gone" page the site serves for tickers missing from a section. */
+const gone = () => textResponse('<html><body>410 Gone</body></html>', 410);
+
+const stockHistory: IndicatorHistory = {
+  'P/L': [{ year: 'Atual', value: '39.19' }, { year: 2025, value: '35.87' }],
+  'P/VP': [{ year: 'Atual', value: '47.00' }, { year: 2025, value: '54.49' }, { year: 2024, value: '61.37' }],
+  'Dividend Yield (DY)': [{ year: 'Atual', value: '0.31' }, { year: 2025, value: '0.38' }],
+  'EV/EBIT': [{ year: 'Atual', value: '32.49' }],
+  'ROE': [{ year: 'Atual', value: '151.31' }, { year: 2025, value: '154.92' }],
+  'ROIC': [{ year: 'Atual', value: 70.123 }, { year: 2025, value: '-' }],
+  'Dívida Bruta / Patrimônio': [{ year: 'Atual', value: '0.92' }, { year: 2025, value: '0.92' }]
+};
+
+const stockStatement: StatementTable = [
+  ['#', 'Últ. 12M', '2025', '2024'],
+  ['Receita Total - US$', ['466,82 Bilhões', '466.823.000.000,00'], ['416,16 Bilhões', '416.161.000.000,00'], ['391,04 Bilhões', '391.035.000.000,00']],
+  ['Lucro Líquido - US$', ['117,36 Bilhões', '117.360.000.000,00'], ['112,01 Bilhões', '112.010.000.000,00'], ['93,74 Bilhões', '93.736.000.000,00']],
+  ['ROE - (%)', '151,31', '154,92', '157,41']
+];
+
+const fiiHistory: IndicatorHistory = {
+  'Valor de Mercado': [{ year: 'Atual', value: 6745913815.6 }, { year: '2025', value: 6328810857.78 }],
+  'P/VP': [{ year: 'Atual', value: 0.98 }, { year: '2025', value: 0.99379458468194 }, { year: '2024', value: 0.90 }],
+  'Dividend Yield': [{ year: 'Atual', value: 10.52 }, { year: '2025', value: 10.7 }]
+};
+
+const stockChart = [{ created_at: '02/01/1990', price: 0.3326 }, { created_at: '03/01/1990', price: 0.3348 }, { created_at: '06/01/1990', price: 0.34 }];
 
 const history: IndicatorHistory = {
   'P/L': [{ year: 'Atual', value: 11.24 }, { year: '2025', value: 9.1705902324143 }],
@@ -173,15 +240,16 @@ describe('ticker page', () => {
   });
 
   test('unknown tickers (410 Gone) surface as a not-found UpstreamError', async () => {
-    mockSite([['/acoes/xyzw9/', textResponse('', 410)]]);
+    const fetchMock = mockSite([[/\/(acoes|stocks|fiis)\/xyzw9\//, textResponse('', 410)]]);
     const error = await fetchCompany('XYZW9').catch(e => e);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(error).toBeInstanceOf(UpstreamError);
     expect(error.status).toBe(404);
     expect(error.userMessage).toContain('não encontrou');
   });
 
   test('fetchDividendsMany skips tickers that fail and keeps the others', async () => {
-    mockSite([['/acoes/bbas3/', textResponse(companyHtml())], ['/acoes/xyzw9/', textResponse('', 410)]]);
+    mockSite([['/acoes/bbas3/', textResponse(companyHtml())], [/\/(acoes|stocks|fiis)\/xyzw9\//, textResponse('', 410)]]);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const many = await fetchDividendsMany(['BBAS3', 'XYZW9']);
     expect([...many.keys()]).toEqual(['BBAS3']);
@@ -199,18 +267,25 @@ describe('prices', () => {
     expect(parsePrices(null)).toEqual([]);
   });
 
-  test('fetchPrices asks for the unadjusted series once and filters ranges from the cache', async () => {
-    const fetchMock = mockSite([['/api/cotacoes/acao/chart/bbas3/36500/false/real/', jsonResponse(chart)]]);
+  test('fetchPrices loads the ticker page, asks for the unadjusted series once and filters ranges from the cache', async () => {
+    const fetchMock = mockSite([['/acoes/bbas3/', textResponse(companyHtml())], ['/api/cotacoes/acao/chart/bbas3/36500/false/real/', jsonResponse(chart)]]);
     const all = await fetchPrices('BBAS3');
     const range = await fetchPrices('BBAS3', '2024-01-03', '2024-01-08');
     expect(all).toHaveLength(6);
     expect(range.map(p => p.date)).toEqual(['2024-01-03', '2024-01-05', '2024-01-08']);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   test('fetchPrices returns an empty series for tickers the chart does not know', async () => {
-    mockSite([['/api/cotacoes/acao/chart/', jsonResponse([])]]);
-    expect(await fetchPrices('XYZW9')).toEqual([]);
+    mockSite([['/acoes/bbas3/', textResponse(companyHtml())], ['/api/cotacoes/acao/chart/', jsonResponse({ real: [] })]]);
+    expect(await fetchPrices('BBAS3')).toEqual([]);
+  });
+
+  test('fetchPrices fails with not-found when the ticker is in no section of the site', async () => {
+    mockSite([[/\/(acoes|stocks|fiis)\/xyzw9\//, gone()]]);
+    const error = await fetchPrices('XYZW9').catch(e => e);
+    expect(error).toBeInstanceOf(UpstreamError);
+    expect(error.status).toBe(404);
   });
 });
 
@@ -358,8 +433,111 @@ describe('rate limiting and maintenance', () => {
 
   test('INVESTIDOR10_BASE_URL redirects every request', async () => {
     vi.stubEnv('INVESTIDOR10_BASE_URL', 'http://localhost:9999/');
-    const fetchMock = mockSite([['localhost:9999/api/cotacoes/', jsonResponse(chart)]]);
+    const fetchMock = mockSite([['localhost:9999/acoes/bbas3/', textResponse(companyHtml())], ['localhost:9999/api/cotacoes/', jsonResponse(chart)]]);
     await fetchPrices('BBAS3');
-    expect(String(fetchMock.mock.calls[0][0])).toBe('http://localhost:9999/api/cotacoes/acao/chart/bbas3/36500/false/real/');
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual(['http://localhost:9999/acoes/bbas3/', 'http://localhost:9999/api/cotacoes/acao/chart/bbas3/36500/false/real/']);
+  });
+});
+
+describe('US stocks and FIIs', () => {
+  test('candidateKinds orders the sections by ticker shape and keeps the others as fallbacks', () => {
+    expect(candidateKinds('aapl')).toEqual(['stock', 'acao', 'fii']);
+    expect(candidateKinds('XPML11')).toEqual(['fii', 'acao', 'stock']);
+    expect(candidateKinds('TAEE11')).toEqual(['fii', 'acao', 'stock']);
+    expect(candidateKinds('PETR4')).toEqual(['acao', 'stock', 'fii']);
+    expect(candidateKinds('BBAS3')).toEqual(['acao', 'stock', 'fii']);
+  });
+
+  test('abbreviatedNumber and historyNumber read the formats the other sections use', () => {
+    expect(abbreviatedNumber('R$ 25,94 M')).toBe(25940000);
+    expect(abbreviatedNumber('R$ 6,90 Bilhões')).toBe(6900000000);
+    expect(abbreviatedNumber('$ 5,05 Trilhões')).toBe(5050000000000);
+    expect(abbreviatedNumber('1,2 mil')).toBe(1200);
+    expect(abbreviatedNumber('R$ 104,90')).toBe(104.9);
+    expect(abbreviatedNumber('-')).toBeUndefined();
+    expect(historyNumber('39.19')).toBe(39.19);
+    expect(historyNumber('2,83')).toBe(2.83);
+    expect(historyNumber(0.74)).toBe(0.74);
+    expect(historyNumber('-')).toBeUndefined();
+    expect(historyNumber(null)).toBeUndefined();
+  });
+
+  test('parseCompanyPage reads the US stock page: id, name, sector, industry, exact figures and dividends', () => {
+    const company = parseCompanyPage('aapl', stockHtml(), 'stock');
+    expect(company).toMatchObject({ ticker: 'AAPL', kind: 'stock', tickerId: 2, companyId: 2, name: 'Apple', sector: 'Tecnologia', segment: 'Equipamento de Comunicações', liquidity: 40389000, marketCap: 5053280166000 });
+    expect(company.dividends).toEqual([
+      { ticker: 'AAPL', date: '2026-05-08', paymentDate: '2026-05-14', value: 0.27, type: 'Dividendos' },
+      { ticker: 'AAPL', date: '2026-08-07', paymentDate: '2026-08-13', value: 0.27, type: 'Dividendos' }
+    ]);
+    expect(() => parseCompanyPage('AAPL', '<html><title>Stock X - Stock AAPL - Y</title></html>', 'stock')).toThrow(UpstreamError);
+  });
+
+  test('parseCompanyPage reads the FII page: fund id, name, segment, type, liquidity card and dividends', () => {
+    const company = parseCompanyPage('xpml11', fiiHtml(), 'fii');
+    expect(company).toMatchObject({ ticker: 'XPML11', kind: 'fii', tickerId: 48, companyId: 0, name: 'XP Malls Fundo de Investimento Imobiliario - Fii', sector: 'Fundo de Tijolo', segment: 'Shoppings / Varejo', liquidity: 25940000, marketCap: 0 });
+    expect(company.dividends.map(d => d.paymentDate)).toEqual(['2026-09-25', '2026-10-23']);
+    expect(() => parseCompanyPage('XPML11', '<html></html>', 'fii')).toThrow(UpstreamError);
+  });
+
+  test('fetchCompany goes straight to /stocks/ for letter-only tickers', async () => {
+    const fetchMock = mockSite([['/stocks/aapl/', textResponse(stockHtml())]]);
+    expect((await fetchCompany('AAPL')).kind).toBe('stock');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://investidor10.com.br/stocks/aapl/');
+  });
+
+  test('fetchCompany tries /fiis/ first for "11" tickers and falls back to /acoes/ for B3 units', async () => {
+    const fetchMock = mockSite([
+      ['/fiis/xpml11/', textResponse(fiiHtml())],
+      ['/fiis/taee11/', gone()], ['/acoes/taee11/', textResponse(companyHtml('TAEE11', 70, 60))]
+    ]);
+    expect((await fetchCompany('XPML11')).kind).toBe('fii');
+    const unit = await fetchCompany('TAEE11');
+    expect(unit).toMatchObject({ kind: 'acao', tickerId: 70, companyId: 60 });
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      'https://investidor10.com.br/fiis/xpml11/', 'https://investidor10.com.br/fiis/taee11/', 'https://investidor10.com.br/acoes/taee11/'
+    ]);
+  });
+
+  test('fetchCompany only falls back on "gone"; other failures surface immediately', async () => {
+    const fetchMock = mockSite([['/fiis/xpml11/', textResponse('', 403)]]);
+    const error = await fetchCompany('XPML11').catch(e => e);
+    expect(error.status).toBe(403);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('fetchPrices uses the stock chart (bare array, by id) and the FII chart (by id, with currency)', async () => {
+    const fetchMock = mockSite([
+      ['/stocks/aapl/', textResponse(stockHtml())], ['/api/stock/cotacoes/chart/2/36500/false/', jsonResponse(stockChart)],
+      ['/fiis/xpml11/', textResponse(fiiHtml())], ['/api/fii/cotacoes/chart/48/36500/false/real/', jsonResponse(chart)]
+    ]);
+    expect(await fetchPrices('AAPL')).toEqual([{ date: '1990-01-02', price: 0.3326 }, { date: '1990-01-03', price: 0.3348 }]);
+    expect(await fetchPrices('XPML11', '2024-01-01', '2024-01-03')).toEqual([{ date: '2024-01-02', price: 27.38 }, { date: '2024-01-03', price: 27.405 }]);
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      'https://investidor10.com.br/stocks/aapl/', 'https://investidor10.com.br/api/stock/cotacoes/chart/2/36500/false/',
+      'https://investidor10.com.br/fiis/xpml11/', 'https://investidor10.com.br/api/fii/cotacoes/chart/48/36500/false/real/'
+    ]);
+  });
+
+  test('fetchIndicators for a US stock reads en-US strings, the "(DY)" label and the US$ statement', async () => {
+    const fetchMock = mockSite([
+      ['/stocks/aapl/', textResponse(stockHtml())],
+      ['/api/stock/historico-indicadores/2/10/', jsonResponse(stockHistory)],
+      ['/api/international/balancos/balancoresultados/chart/2/10/yearly/', jsonResponse(stockStatement)]
+    ]);
+    expect(await fetchIndicators('AAPL')).toEqual([
+      { year: 2024, pVp: 61.37, revenue: 391035000000, earnings: 93736000000 },
+      { year: 2025, pVp: 54.49, roe: 154.92, debtEquity: 0.92, revenue: 416161000000, earnings: 112010000000 }
+    ]);
+    expect(currentIndicators(stockHistory)).toEqual({ pL: 39.19, pVp: 47, dy: 0.31, evEbit: 32.49, roe: 151.31, roic: 70.12, debtEquity: 0.92 });
+    expect(await fetchAnnualEarnings('AAPL')).toEqual([{ year: 2024, earnings: 93736000000 }, { year: 2025, earnings: 112010000000 }]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  test('fetchIndicators for a FII uses the fund history only; there is no statement to request', async () => {
+    const fetchMock = mockSite([['/fiis/xpml11/', textResponse(fiiHtml())], ['/api/fii/historico-indicadores/48/10/', jsonResponse(fiiHistory)]]);
+    expect(await fetchIndicators('XPML11')).toEqual([{ year: 2024, pVp: 0.9 }, { year: 2025, pVp: 0.99 }]);
+    expect(await fetchAnnualEarnings('XPML11')).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
