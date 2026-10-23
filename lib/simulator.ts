@@ -218,7 +218,8 @@ export function simulatePortfolioTimeline(input: SimulationInput, data: MarketDa
     timeWeightedAnnualizedReturn,
     totalDividends,
     totalDividendsReinvested: totalReinvested,
-    annualDividendIncome: dividendTransactions.filter(transaction => transaction.date.slice(0, 4) === input.endDate.slice(0, 4)).reduce((sum, transaction) => sum + transaction.amount, 0),
+    // Average over the simulated period; periods under a year are not annualised so a short back test cannot extrapolate.
+    annualDividendIncome: totalDividends / Math.max(1, yearsBetween(input.startDate, input.endDate)),
     cashBalance: cash,
     holdings: holdingResults,
     transactions,

@@ -14,9 +14,17 @@ const dividendModeOptions = [
 
 const simulatorStorageKey = 'historicalSimulator';
 
+/** Local calendar date as YYYY-MM-DD; this is a back test, so no date may go past it. */
+const today = () => {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+};
+
+const clampToToday = (date: string) => (date > today() ? today() : date);
+
 const defaultSimulatorValues = {
   startDate: '2014-01-01',
-  endDate: new Date().toISOString().slice(0, 10),
+  endDate: today(),
   initialInvestment: 10000,
   monthlyContribution: 500,
   dividendMode: 'reinvest' as DividendMode
@@ -47,7 +55,14 @@ export default function SimulationForm({ holdings, onResult, onRunningChange }: 
 
   useEffect(() => {
     const saved = localStorage.getItem(simulatorStorageKey);
-    if (saved) setValues(current => ({ ...current, ...JSON.parse(saved) }));
+    if (!saved) return;
+    const parsed = JSON.parse(saved) as Partial<typeof defaultSimulatorValues>;
+    setValues(current => ({
+      ...current,
+      ...parsed,
+      startDate: clampToToday(parsed.startDate ?? current.startDate),
+      endDate: clampToToday(parsed.endDate ?? current.endDate)
+    }));
   }, []);
 
   // A plain submit handler, not a React 19 form `action`: actions run inside a
@@ -83,12 +98,12 @@ export default function SimulationForm({ holdings, onResult, onRunningChange }: 
       <form onSubmit={submit}>
         <Stack gap="sm">
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 1 }} spacing="sm">
-            <TextInput label="Data inicial" name="startDate" type="date" value={values.startDate} onChange={event => {
-              const startDate = event.currentTarget.value;
+            <TextInput label="Data inicial" name="startDate" type="date" value={values.startDate} max={today()} required onChange={event => {
+              const startDate = clampToToday(event.currentTarget.value);
               setValues(current => ({ ...current, startDate }));
             }}/>
-            <TextInput label="Data final" name="endDate" type="date" value={values.endDate} onChange={event => {
-              const endDate = event.currentTarget.value;
+            <TextInput label="Data final" name="endDate" type="date" value={values.endDate} max={today()} required onChange={event => {
+              const endDate = clampToToday(event.currentTarget.value);
               setValues(current => ({ ...current, endDate }));
             }}/>
             <NumberInput label="Investimento inicial" name="initialInvestment" value={values.initialInvestment} onChange={value => setValues(current => ({ ...current, initialInvestment: Number(value) || 0 }))} min={0}/>
