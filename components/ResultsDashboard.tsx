@@ -16,7 +16,7 @@ function resultCards(result: SimulationResult): ResultCard[] {
     ['Retorno time-weighted (TWR)', pct(result.timeWeightedAnnualizedReturn)],
     ['Dividendos recebidos', brl(result.totalDividends)],
     ['Dividendos reinvestidos', brl(result.totalDividendsReinvested)],
-    ['Renda anual de dividendos', brl(result.annualDividendIncome)],
+    ['Renda anual de dividendos média', brl(result.annualDividendIncome)],
     ['Saldo em caixa', brl(result.cashBalance)],
     ['Melhor / pior', `${result.best?.ticker ?? '-'} / ${result.worst?.ticker ?? '-'}`]
   ];
