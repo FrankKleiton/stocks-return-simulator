@@ -70,6 +70,26 @@ const fiiHtml = (ticker = 'XPML11', id = 48) => `<!doctype html><html><head><tit
 </body></html>`;
 
 /** The "gone" page the site serves for tickers missing from a section. */
+/** Trimmed copy of the global ETF page (EXUS, October 2026); B3 ETF pages (BOVA11) share the layout and print no dividend table. */
+const etfHtml = (ticker = 'EXUS', id = 436901, name = 'Macquarie Focused International Core ETF', cap = 'US$ 90,96 M', dividends = true) => `<!doctype html><html><head>
+<title>ETF ${ticker} Cotação, Histórico, Dividendos e Gráficos - Investidor10</title>
+<meta name="description" content="Tudo sobre o ETF ${ticker} - ${name}. Cotação ${ticker} hoje, histórico, gráficos do ${ticker} e muito mais."></head><body>
+<h1>${ticker}</h1>
+<input type="hidden" id="etfId" value="${id}" />
+<section id="cards-ticker">
+<div class="_card"><div class="_card-header"><div><span title="Capitalização">Capitalização</span></div></div><div class="_card-body"><span>${cap}</span></div></div>
+<div class="_card"><div class="_card-header"><div><span title="DY">DY</span></div></div><div class="_card-body"><span>0,03%</span></div></div>
+</section>
+${dividends ? `<table id="table-dividends-history" class="table"><thead><tr><th><h3>tipo</h3></th><th><h3>data com</h3></th><th><h3>pagamento</h3></th><th><h3>valor</h3></th></tr></thead>
+<tbody>
+  <tr class="visible-even"><td class="text-center">Dividendos</td><td class="text-center">23/12/2025</td><td class="text-center">31/12/2025</td><td class="text-center"> 0,009000 </td></tr>
+</tbody></table>` : ''}
+<script> let urlQuotationBaseBr = 'https://investidor10.com.br/api/etfs/cotacoes/chart/${id}/'; </script>
+</body></html>`;
+
+/** ETF chart rows are dated by `last_update` rather than `created_at`. */
+const etfChart = [{ price: 24.93, last_update: '18/06/2025' }, { price: 24.81, last_update: '20/06/2025' }, { price: 25, last_update: '21/06/2025' }];
+
 const gone = () => textResponse('<html><body>410 Gone</body></html>', 410);
 
 const stockHistory: IndicatorHistory = {
@@ -240,16 +260,16 @@ describe('ticker page', () => {
   });
 
   test('unknown tickers (410 Gone) surface as a not-found UpstreamError', async () => {
-    const fetchMock = mockSite([[/\/(acoes|stocks|fiis)\/xyzw9\//, textResponse('', 410)]]);
+    const fetchMock = mockSite([[/\/(acoes|stocks|fiis|etfs)\/xyzw9\//, textResponse('', 410)]]);
     const error = await fetchCompany('XYZW9').catch(e => e);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(error).toBeInstanceOf(UpstreamError);
     expect(error.status).toBe(404);
     expect(error.userMessage).toContain('não encontrou');
   });
 
   test('fetchDividendsMany skips tickers that fail and keeps the others', async () => {
-    mockSite([['/acoes/bbas3/', textResponse(companyHtml())], [/\/(acoes|stocks|fiis)\/xyzw9\//, textResponse('', 410)]]);
+    mockSite([['/acoes/bbas3/', textResponse(companyHtml())], [/\/(acoes|stocks|fiis|etfs)\/xyzw9\//, textResponse('', 410)]]);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const many = await fetchDividendsMany(['BBAS3', 'XYZW9']);
     expect([...many.keys()]).toEqual(['BBAS3']);
@@ -282,7 +302,7 @@ describe('prices', () => {
   });
 
   test('fetchPrices fails with not-found when the ticker is in no section of the site', async () => {
-    mockSite([[/\/(acoes|stocks|fiis)\/xyzw9\//, gone()]]);
+    mockSite([[/\/(acoes|stocks|fiis|etfs)\/xyzw9\//, gone()]]);
     const error = await fetchPrices('XYZW9').catch(e => e);
     expect(error).toBeInstanceOf(UpstreamError);
     expect(error.status).toBe(404);
@@ -441,11 +461,12 @@ describe('rate limiting and maintenance', () => {
 
 describe('US stocks and FIIs', () => {
   test('candidateKinds orders the sections by ticker shape and keeps the others as fallbacks', () => {
-    expect(candidateKinds('aapl')).toEqual(['stock', 'acao', 'fii']);
-    expect(candidateKinds('XPML11')).toEqual(['fii', 'acao', 'stock']);
-    expect(candidateKinds('TAEE11')).toEqual(['fii', 'acao', 'stock']);
-    expect(candidateKinds('PETR4')).toEqual(['acao', 'stock', 'fii']);
-    expect(candidateKinds('BBAS3')).toEqual(['acao', 'stock', 'fii']);
+    expect(candidateKinds('aapl')).toEqual(['stock', 'etf', 'acao', 'fii']);
+    expect(candidateKinds('XPML11')).toEqual(['fii', 'acao', 'etf', 'stock']);
+    expect(candidateKinds('TAEE11')).toEqual(['fii', 'acao', 'etf', 'stock']);
+    expect(candidateKinds('BOVA11')).toEqual(['fii', 'acao', 'etf', 'stock']);
+    expect(candidateKinds('PETR4')).toEqual(['acao', 'stock', 'fii', 'etf']);
+    expect(candidateKinds('BBAS3')).toEqual(['acao', 'stock', 'fii', 'etf']);
   });
 
   test('abbreviatedNumber and historyNumber read the formats the other sections use', () => {
@@ -538,6 +559,41 @@ describe('US stocks and FIIs', () => {
     const fetchMock = mockSite([['/fiis/xpml11/', textResponse(fiiHtml())], ['/api/fii/historico-indicadores/48/10/', jsonResponse(fiiHistory)]]);
     expect(await fetchIndicators('XPML11')).toEqual([{ year: 2024, pVp: 0.9 }, { year: 2025, pVp: 0.99 }]);
     expect(await fetchAnnualEarnings('XPML11')).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('ETFs', () => {
+  test('parseCompanyPage reads the ETF page: etf id, name from the meta description, capitalisation card and dividends', () => {
+    const company = parseCompanyPage('exus', etfHtml(), 'etf');
+    expect(company).toMatchObject({ ticker: 'EXUS', kind: 'etf', tickerId: 436901, companyId: 0, name: 'Macquarie Focused International Core ETF', sector: 'ETF', liquidity: 0, marketCap: 90_960_000 });
+    expect(company.dividends).toEqual([{ ticker: 'EXUS', date: '2025-12-23', paymentDate: '2025-12-31', value: 0.009, type: 'Dividendos' }]);
+    expect(parseCompanyPage('bova11', etfHtml('BOVA11', 9, 'iShares Ibovespa Fundo de Índice', 'R$ 18,87 B', false), 'etf')).toMatchObject({ tickerId: 9, name: 'iShares Ibovespa Fundo de Índice', marketCap: 18_870_000_000, dividends: [] });
+    expect(() => parseCompanyPage('EXUS', '<html></html>', 'etf')).toThrow(UpstreamError);
+  });
+
+  test('fetchCompany reaches /etfs/ after /stocks/ for foreign ETFs and after /fiis/ and /acoes/ for B3 ETFs', async () => {
+    const fetchMock = mockSite([
+      ['/stocks/exus/', gone()], ['/etfs/exus/', textResponse(etfHtml())],
+      ['/fiis/bova11/', gone()], ['/acoes/bova11/', gone()], ['/etfs/bova11/', textResponse(etfHtml('BOVA11', 9, 'iShares Ibovespa Fundo de Índice', 'R$ 18,87 B', false))]
+    ]);
+    expect(await fetchCompany('EXUS')).toMatchObject({ kind: 'etf', tickerId: 436901 });
+    expect(await fetchCompany('BOVA11')).toMatchObject({ kind: 'etf', tickerId: 9 });
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      'https://investidor10.com.br/stocks/exus/', 'https://investidor10.com.br/etfs/exus/',
+      'https://investidor10.com.br/fiis/bova11/', 'https://investidor10.com.br/acoes/bova11/', 'https://investidor10.com.br/etfs/bova11/'
+    ]);
+  });
+
+  test('fetchPrices uses the ETF chart by etf id and dates rows by last_update', async () => {
+    mockSite([['/stocks/exus/', gone()], ['/etfs/exus/', textResponse(etfHtml())], ['/api/etfs/cotacoes/chart/436901/36500/false/', jsonResponse(etfChart)]]);
+    expect(await fetchPrices('EXUS')).toEqual([{ date: '2025-06-18', price: 24.93 }, { date: '2025-06-20', price: 24.81 }]);
+    expect(await fetchDividends('EXUS')).toHaveLength(1);
+  });
+
+  test('fetchIndicators yields no yearly indicators for ETFs instead of calling a history endpoint', async () => {
+    const fetchMock = mockSite([['/stocks/exus/', gone()], ['/etfs/exus/', textResponse(etfHtml())]]);
+    expect(await fetchIndicators('EXUS')).toEqual([]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

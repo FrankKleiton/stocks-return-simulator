@@ -6,8 +6,9 @@
  * server-rendered ticker page, and the stock universe from the market-cap ranking. Everything is cached in
  * memory because a ticker page alone weighs 2-4 MB and the site has no documented rate limit.
  *
- * Three sections of the site are supported, each with its own page layout and JSON endpoints:
- * B3 shares (`/acoes/petr4/`), US stocks (`/stocks/aapl/`, quoted in US$) and real-estate funds (`/fiis/xpml11/`).
+ * Four sections of the site are supported, each with its own page layout and JSON endpoints:
+ * B3 shares (`/acoes/petr4/`), US stocks (`/stocks/aapl/`, quoted in US$), real-estate funds (`/fiis/xpml11/`)
+ * and ETFs (`/etfs/bova11/`; foreign ETFs such as EXUS redirect to `/etfs-global/`, quoted in their own currency).
  */
 import { cached, retry } from './cache';
 import { isUpstreamError, UpstreamError } from './upstreamError';
@@ -161,16 +162,17 @@ const unexpectedFormat = (url: string, what: string) => new UpstreamError(200, u
 // Asset kinds and their endpoints
 // ---------------------------------------------------------------------------------------------
 
-/** Section of the site a ticker lives in: B3 share (`/acoes/`), US stock (`/stocks/`) or real-estate fund (`/fiis/`). */
-export type AssetKind = 'acao' | 'stock' | 'fii';
-const ALL_KINDS: AssetKind[] = ['acao', 'stock', 'fii'];
+/** Section of the site a ticker lives in: B3 share (`/acoes/`), US stock (`/stocks/`), real-estate fund (`/fiis/`) or ETF (`/etfs/`). */
+export type AssetKind = 'acao' | 'stock' | 'fii' | 'etf';
+const ALL_KINDS: AssetKind[] = ['acao', 'stock', 'fii', 'etf'];
 
 interface Endpoints {
   page: (ticker: string) => string;
   /** Price chart; `false` asks for quotes adjusted for splits only, the simulator models dividends itself. */
   chart: (company: CompanyPage, days: number) => string;
-  history: (id: number, years: number) => string;
-  /** Yearly income statement (DRE); FIIs publish none. */
+  /** Yearly indicator history; ETF pages publish none. */
+  history?: (id: number, years: number) => string;
+  /** Yearly income statement (DRE); FIIs and ETFs publish none. */
   statement?: (id: number, years: number) => string;
 }
 
@@ -191,16 +193,22 @@ const ENDPOINTS: Record<AssetKind, Endpoints> = {
     page: ticker => `/fiis/${ticker.toLowerCase()}/`,
     chart: (company, days) => `/api/fii/cotacoes/chart/${company.tickerId}/${days}/false/real/`,
     history: (id, years) => `/api/fii/historico-indicadores/${id}/${years}/`
+  },
+  etf: {
+    // B3 ETFs answer here directly; any other ticker is redirected to `/etfs-global/<ticker>/`, which fetch follows.
+    page: ticker => `/etfs/${ticker.toLowerCase()}/`,
+    chart: (company, days) => `/api/etfs/cotacoes/chart/${company.tickerId}/${days}/false/`
   }
 };
 
 /**
  * Sections that may list a ticker, most likely first; the rest are tried when the site answers "gone".
- * Letters only is a US stock; a "11"-"13" suffix is usually a FII but also a B3 unit (TAEE11); anything else a B3 share.
+ * Letters only is a US stock or a foreign ETF (EXUS); a "11"-"13" suffix is usually a FII but also a B3 unit (TAEE11)
+ * or a B3 ETF (BOVA11); anything else a B3 share.
  */
 export function candidateKinds(ticker: string): AssetKind[] {
   const t = normalizeTicker(ticker);
-  const preferred: AssetKind[] = /^[A-Z]+$/.test(t) ? ['stock'] : /^[A-Z]{4}1[1-3]$/.test(t) ? ['fii', 'acao'] : ['acao'];
+  const preferred: AssetKind[] = /^[A-Z]+$/.test(t) ? ['stock', 'etf'] : /^[A-Z]{4}1[1-3]$/.test(t) ? ['fii', 'acao', 'etf'] : ['acao'];
   return [...preferred, ...ALL_KINDS.filter(kind => !preferred.includes(kind))];
 }
 
@@ -213,14 +221,14 @@ export interface CompanyPage {
   kind: AssetKind;
   /** Id of the indicator-history endpoint: the ticker id of a B3 share, or the stock/fund id. */
   tickerId: number;
-  /** Id of the statement endpoints: the company id of a B3 share, the stock id of a US stock, 0 for a FII. */
+  /** Id of the statement endpoints: the company id of a B3 share, the stock id of a US stock, 0 for a FII or ETF. */
   companyId: number;
   name: string;
   sector?: string;
   segment?: string;
   /** Average daily traded volume (R$, or US$ for US stocks). */
   liquidity: number;
-  /** Market cap (R$, or US$ for US stocks); FII pages do not print it, so it is 0 there. */
+  /** Market cap (R$, or US$ for US stocks and foreign ETFs); FII pages do not print it, so it is 0 there. */
   marketCap: number;
   dividends: DividendPoint[];
 }
@@ -279,6 +287,17 @@ const PAGE_PARSERS: Record<AssetKind, (html: string) => PageFacts | undefined> =
       sector: fiiCell(html, 'TIPO DE FUNDO'), segment: fiiCell(html, 'SEGMENTO'),
       liquidity: abbreviatedNumber(tickerCard(html, 'Liquidez Diária')) ?? 0, marketCap: 0
     };
+  },
+  etf: html => {
+    const id = Number(html.match(/etfId"\s+value="(\d+)"/)?.[1]);
+    if (!id) return undefined;
+    return {
+      tickerId: id, companyId: 0,
+      name: html.match(/<meta name="description" content="Tudo sobre o ETF [A-Z0-9]+ - (.*?)\. /)?.[1] ?? '',
+      sector: 'ETF', segment: undefined,
+      // ETF pages print no liquidity; the capitalisation card is abbreviated ("US$ 90,96 M").
+      liquidity: 0, marketCap: abbreviatedNumber(tickerCard(html, 'Capitalização')) ?? 0
+    };
   }
 };
 
@@ -325,8 +344,8 @@ export async function fetchCompany(ticker: string): Promise<CompanyPage> {
 // Prices
 // ---------------------------------------------------------------------------------------------
 
-export interface ChartPoint { price?: number | null; created_at?: string | null }
-/** B3 shares and FIIs answer `{ real, dolar, euro }`; US stocks answer a bare array (in US$). */
+export interface ChartPoint { price?: number | null; created_at?: string | null; last_update?: string | null }
+/** B3 shares and FIIs answer `{ real, dolar, euro }`; US stocks and ETFs answer a bare array (ETF rows date rows by `last_update`). */
 export type ChartResponse = { real?: ChartPoint[] } | ChartPoint[];
 
 const isWeekend = (date: string) => { const day = new Date(`${date}T00:00:00Z`).getUTCDay(); return day === 0 || day === 6; };
@@ -336,7 +355,7 @@ export function parsePrices(chart: ChartResponse | null | undefined, start?: str
   const rows = Array.isArray(chart) ? chart : chart?.real ?? [];
   const byDate = new Map<string, number>();
   for (const row of rows) {
-    const date = brDate(row.created_at);
+    const date = brDate(row.created_at ?? row.last_update);
     const price = num(row.price);
     if (!date || price <= 0 || isWeekend(date) || (start && date < start) || (end && date > end)) continue;
     byDate.set(date, price);
@@ -452,8 +471,12 @@ export function buildIndicators(history: IndicatorHistory | null | undefined, st
   return [...byYear.values()].sort((a, b) => a.year - b.year);
 }
 
-const fetchHistory = (kind: AssetKind, id: number, years: number) =>
-  cached(`hist-${kind}-${id}-${years}`, DAY, () => retry(() => getJson<IndicatorHistory>(ENDPOINTS[kind].history(id, years))));
+/** Resolves to an empty history for kinds without an indicator endpoint (ETFs). */
+const fetchHistory = (kind: AssetKind, id: number, years: number): Promise<IndicatorHistory | null> => {
+  const path = ENDPOINTS[kind].history;
+  if (!path) return Promise.resolve({});
+  return cached(`hist-${kind}-${id}-${years}`, DAY, () => retry(() => getJson<IndicatorHistory>(path(id, years))));
+};
 
 /** Resolves to null for kinds without a statement endpoint (FIIs). */
 async function fetchStatement(company: CompanyPage): Promise<StatementTable | null> {
