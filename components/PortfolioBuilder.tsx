@@ -1,14 +1,22 @@
 'use client';
-import { Badge, Button, Card, Group, NumberInput, Stack, Text, TextInput, Title } from '@mantine/core';
+import { useState } from 'react';
+import { Badge, Button, Card, Group, NumberInput, Popover, Stack, Text, TextInput, Title } from '@mantine/core';
 import type { PortfolioItem } from '@/lib/types';
 
 export default function PortfolioBuilder({ items, setItems }: { items: PortfolioItem[]; setItems: (x: PortfolioItem[]) => void }) {
   const addManual = (form: FormData) => { const ticker = String(form.get('ticker') || '').toUpperCase().replace(/[^A-Z0-9]/g,''); if (ticker && !items.some(i=>i.ticker===ticker)) setItems([...items, { ticker, allocation: items.length ? 0 : 100 }]); };
   const equal = () => setItems(items.map(i => ({ ...i, allocation: Math.round((100/items.length)*100)/100 })));
   const save = () => { localStorage.setItem('portfolio', JSON.stringify(items)); alert('Carteira salva localmente.'); };
+  // Clearing is a two-step action so a stray click cannot wipe a hand-built wallet.
+  const [confirmClear, setConfirmClear] = useState(false);
+  const clear = () => { setItems([]); setConfirmClear(false); };
   return <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
     <Stack gap="md">
-      <Group justify="space-between" align="center"><Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Montador de carteira</Title><Group gap="xs"><Button variant="light" size="xs" onClick={equal} disabled={!items.length}>Igualar</Button><Button variant="outline" size="xs" onClick={save}>Salvar</Button></Group></Group>
+      <Group justify="space-between" align="center"><Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Montador de carteira</Title><Group gap="xs"><Button variant="light" size="xs" onClick={equal} disabled={!items.length}>Igualar</Button><Button variant="outline" size="xs" onClick={save}>Salvar</Button>
+        <Popover opened={confirmClear} onChange={setConfirmClear} position="bottom-end" withArrow shadow="md">
+          <Popover.Target><Button variant="light" color="red" size="xs" onClick={() => setConfirmClear(o => !o)} disabled={!items.length}>Limpar</Button></Popover.Target>
+          <Popover.Dropdown><Stack gap="xs"><Text size="sm">Remover todos os {items.length} ativos da carteira?</Text><Group gap="xs" justify="flex-end"><Button variant="subtle" size="xs" onClick={() => setConfirmClear(false)}>Cancelar</Button><Button color="red" size="xs" onClick={clear}>Remover tudo</Button></Group></Stack></Popover.Dropdown>
+        </Popover></Group></Group>
       <form action={addManual}><Group gap="xs" wrap="nowrap"><TextInput name="ticker" placeholder="Adicionar ativo, ex: WEGE3, XPML11 ou AAPL" style={{ flex: 1, minWidth: 0 }}/><Button type="submit">Adicionar</Button></Group></form>
       <Stack gap="xs">{items.map((it, idx) => <Group key={it.ticker} gap="xs" wrap="nowrap" p="sm" className="portfolio-stock-row"><Badge size="lg" radius="sm" variant="gradient" gradient={{ from: 'cyber.5', to: 'plasma.5', deg: 135 }} miw={76}>{it.ticker}</Badge><NumberInput min={0} max={100} value={it.allocation} onChange={v => setItems(items.map((x,i)=>i===idx?{...x,allocation:Number(v) || 0}:x))} suffix="%" style={{ flex: 1, minWidth: 0 }}/><Button variant="light" color="red" size="xs" onClick={() => setItems(items.filter(x=>x.ticker!==it.ticker))}>Remover</Button></Group>)}{!items.length && <Text size="sm" c="dimmed">Adicione ações pelo campo acima, ex: WEGE3.</Text>}</Stack>
     </Stack>
