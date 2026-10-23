@@ -105,6 +105,22 @@ describe('portfolio simulator dividends', () => {
     expect(result.annualDividendIncome).toBeCloseTo(150, 0);
   });
 
+  test('reports dividend income for the last full calendar year before the end date', () => {
+    const prices = [
+      { date: '2024-01-01', price: 10 },
+      { date: '2025-01-01', price: 10 },
+      { date: '2026-01-01', price: 10 }
+    ];
+    const dividends = [
+      { ticker: 'TEST3', date: '2024-01-15', paymentDate: '2024-02-15', value: 1 },
+      { ticker: 'TEST3', date: '2025-01-15', paymentDate: '2025-02-15', value: 2 }
+    ];
+    const result = runSimulation({ ...input('2024-01-01'), endDate: '2026-01-01' }, { TEST3: { prices, dividends } });
+
+    expect(result.lastFullYear).toBe('2025');
+    expect(result.lastFullYearDividendIncome).toBe(200);
+  });
+
   test('does not annualise dividend income for back tests shorter than a year', () => {
     const result = runSimulation(input('2024-01-01'), data);
 

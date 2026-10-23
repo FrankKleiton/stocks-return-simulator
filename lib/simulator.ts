@@ -209,6 +209,8 @@ export function simulatePortfolioTimeline(input: SimulationInput, data: MarketDa
   const moneyWeightedAnnualizedReturn = moneyWeightedAnnualReturn([...externalFlows, { date: input.endDate, amount: finalValue }]);
   const timeWeightedAnnualizedReturn = timeWeightedAnnualReturn(series, input.startDate, input.endDate);
   const rankedHoldings = [...holdingResults].sort((a, b) => b.returnPct - a.returnPct);
+  // The end year is usually partial, so the last complete calendar year is the one before it.
+  const lastFullYear = String(Number(input.endDate.slice(0, 4)) - 1);
 
   return {
     finalValue,
@@ -220,6 +222,8 @@ export function simulatePortfolioTimeline(input: SimulationInput, data: MarketDa
     totalDividendsReinvested: totalReinvested,
     // Average over the simulated period; periods under a year are not annualised so a short back test cannot extrapolate.
     annualDividendIncome: totalDividends / Math.max(1, yearsBetween(input.startDate, input.endDate)),
+    lastFullYear,
+    lastFullYearDividendIncome: dividendTransactions.filter(transaction => transaction.date.slice(0, 4) === lastFullYear).reduce((sum, transaction) => sum + transaction.amount, 0),
     cashBalance: cash,
     holdings: holdingResults,
     transactions,

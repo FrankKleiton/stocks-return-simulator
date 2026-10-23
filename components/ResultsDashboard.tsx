@@ -17,6 +17,7 @@ function resultCards(result: SimulationResult): ResultCard[] {
     ['Dividendos recebidos', brl(result.totalDividends)],
     ['Dividendos reinvestidos', brl(result.totalDividendsReinvested)],
     ['Renda anual de dividendos média', brl(result.annualDividendIncome)],
+    [`Renda anual de dividendos (${result.lastFullYear})`, brl(result.lastFullYearDividendIncome)],
     ['Saldo em caixa', brl(result.cashBalance)],
     ['Melhor / pior', `${result.best?.ticker ?? '-'} / ${result.worst?.ticker ?? '-'}`]
   ];
