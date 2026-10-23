@@ -89,6 +89,13 @@ describe('portfolio simulator dividends', () => {
     expect(result.finalValue).toBe(1100);
   });
 
+  test('reports the total invested as the initial investment plus monthly contributions', () => {
+    const prices = [{ date: '2024-01-01', price: 10 }, { date: '2024-02-01', price: 10 }, { date: '2024-03-01', price: 10 }];
+    const result = runSimulation({ ...input('2024-01-01'), monthlyContribution: 500, dividendMode: 'ignore' }, { TEST3: { prices, dividends: [] } });
+
+    expect(result.totalInvested).toBe(2000);
+  });
+
   test('reports annual dividend income as the average over the simulated years', () => {
     const prices = [
       { date: '2024-01-01', price: 10 },

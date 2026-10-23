@@ -10,6 +10,7 @@ type ResultCard = [label: string, value: string];
 
 function resultCards(result: SimulationResult): ResultCard[] {
   return [
+    ['Valor investido', brl(result.totalInvested)],
     ['Valor final', brl(result.finalValue)],
     ['Retorno total', pct(result.totalReturn)],
     ['Retorno money-weighted (TIR)', pct(result.moneyWeightedAnnualizedReturn)],

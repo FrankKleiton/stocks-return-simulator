@@ -213,6 +213,7 @@ export function simulatePortfolioTimeline(input: SimulationInput, data: MarketDa
   const lastFullYear = String(Number(input.endDate.slice(0, 4)) - 1);
 
   return {
+    totalInvested: contributions,
     finalValue,
     totalReturn,
     cagr: moneyWeightedAnnualizedReturn,
