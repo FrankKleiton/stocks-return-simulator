@@ -19,13 +19,13 @@ export default function ResultTables({ result }: { result: SimulationResult }) {
   const dividends = [...result.dividends].sort((a, b) => b.paymentDate.localeCompare(a.paymentDate) || a.ticker.localeCompare(b.ticker));
 
   return <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
-    <Card withBorder shadow="md" radius="lg" p="md">
+    <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
       <Title order={3} fz="md" mb="sm">Posições</Title>
       <ScrollArea>
         <Table miw={mixed ? 680 : 560} fz="sm" verticalSpacing="xs">
           <Table.Thead><Table.Tr><Table.Th>Ativo</Table.Th><Table.Th {...num}>Quantidade</Table.Th><Table.Th {...num}>Custo ({symbol})</Table.Th><Table.Th {...num}>Valor ({symbol})</Table.Th>{mixed && <Table.Th {...num}>Valor na moeda original</Table.Th>}<Table.Th {...num}>Dividendos ({symbol})</Table.Th><Table.Th {...num}>Retorno</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>{result.holdings.map(h => <Table.Tr key={h.ticker}>
-            <Table.Td fw={700}><Group gap={6} wrap="nowrap">{h.ticker}<Badge size="xs" radius="sm" variant="outline" color={currencyColor[h.currency]}>{currencySymbol(h.currency)}</Badge></Group></Table.Td>
+            <Table.Td fw={700}><Group gap={6} wrap="nowrap">{h.ticker}<Badge size="xs" radius="sm" variant="outline" color={currencyColor[h.currency]} style={{ flex: '0 0 auto' }}>{currencySymbol(h.currency)}</Badge></Group></Table.Td>
             <Table.Td {...num}>{quantity(h.shares)}</Table.Td><Table.Td {...num}>{brl(h.cost)}</Table.Td><Table.Td {...num}>{brl(h.value)}</Table.Td>
             {mixed && <Table.Td {...num} c={h.currency === result.currency ? 'dimmed' : undefined}>{h.currency === result.currency ? '—' : money(h.nativeValue, h.currency)}</Table.Td>}
             <Table.Td {...num}>{brl(h.dividends)}</Table.Td><Table.Td {...num}><Signed value={h.returnPct}/></Table.Td>
@@ -33,7 +33,7 @@ export default function ResultTables({ result }: { result: SimulationResult }) {
         </Table>
       </ScrollArea>
     </Card>
-    <Card withBorder shadow="md" radius="lg" p="md">
+    <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
       <Title order={3} fz="md" mb="sm">Transações <Text span size="sm" c="dimmed" fw={400}>· {result.transactions.length > MAX_TRANSACTIONS ? `últimas ${MAX_TRANSACTIONS} de ${result.transactions.length}` : result.transactions.length}</Text></Title>
       <ScrollArea h={360}>
         <Table miw={520} fz="sm" verticalSpacing="xs" stickyHeader>
@@ -44,7 +44,7 @@ export default function ResultTables({ result }: { result: SimulationResult }) {
         </Table>
       </ScrollArea>
     </Card>
-    <Card withBorder shadow="md" radius="lg" p="md" style={{ gridColumn: '1 / -1' }}>
+    <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }} style={{ gridColumn: '1 / -1' }}>
       <Title order={3} fz="md" mb="sm">Histórico de proventos <Text span size="sm" c="dimmed" fw={400}>· {dividends.length} pagamentos por cota/ação</Text></Title>
       <ScrollArea h={360}>
         <Table miw={620} fz="sm" verticalSpacing="xs" stickyHeader>

@@ -1,5 +1,6 @@
 'use client';
 import { Card, SimpleGrid, Title, useComputedColorScheme } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import type { ChartOptions, Scale, TooltipItem } from 'chart.js';
 import { ArcElement, BarElement, CategoryScale, Chart as ChartJS, Filler, Legend, LinearScale, LineElement, PointElement, Tooltip } from 'chart.js';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
@@ -15,7 +16,7 @@ function chartTheme(dark: boolean) {
   return { text: dark ? '#cbd5e1' : '#334155', muted: dark ? '#94a3b8' : '#64748b', grid: dark ? 'rgba(148,163,184,0.12)' : 'rgba(15,23,42,0.08)', surface: dark ? '#07111f' : '#ffffff' };
 }
 
-function cartesianOptions(theme: ReturnType<typeof chartTheme>, currency: Currency, xLabel: (label: string) => string, titleLabel: (label: string) => string): ChartOptions<'line' | 'bar'> {
+function cartesianOptions(theme: ReturnType<typeof chartTheme>, currency: Currency, compact: boolean, xLabel: (label: string) => string, titleLabel: (label: string) => string): ChartOptions<'line' | 'bar'> {
   const amount = (item: TooltipItem<'line' | 'bar'>) => `${item.dataset.label}: ${money(Number(item.raw), currency)}`;
   return {
     responsive: true,
@@ -26,8 +27,8 @@ function cartesianOptions(theme: ReturnType<typeof chartTheme>, currency: Curren
       tooltip: { callbacks: { title: items => titleLabel(String(items[0]?.label ?? '')), label: amount } }
     },
     scales: {
-      x: { ticks: { color: theme.muted, maxTicksLimit: 8, maxRotation: 0, callback(this: Scale, value) { return xLabel(this.getLabelForValue(Number(value))); } }, grid: { color: theme.grid } },
-      y: { ticks: { color: theme.muted, callback: value => moneyCompact(Number(value), currency) }, grid: { color: theme.grid } }
+      x: { ticks: { color: theme.muted, maxTicksLimit: compact ? 4 : 8, maxRotation: 0, callback(this: Scale, value) { return xLabel(this.getLabelForValue(Number(value))); } }, grid: { color: theme.grid } },
+      y: { ticks: { color: theme.muted, maxTicksLimit: compact ? 5 : 8, callback: value => moneyCompact(Number(value), currency) }, grid: { color: theme.grid } }
     }
   };
 }
@@ -36,6 +37,9 @@ export default function PortfolioCharts({ result }: { result: SimulationResult }
   const dark = useComputedColorScheme('dark') === 'dark';
   const theme = chartTheme(dark);
   const currency = result.currency;
+  // Phones get fewer axis ticks, shorter canvases and the legend under the doughnut instead of beside it.
+  const compact = useMediaQuery('(max-width: 48em)') ?? false;
+  const height = compact ? 240 : 280;
 
   const valueData = {
     labels: result.series.map(p => p.date),
@@ -56,23 +60,23 @@ export default function PortfolioCharts({ result }: { result: SimulationResult }
   const allocationOptions: ChartOptions<'doughnut'> = {
     responsive: true, maintainAspectRatio: false, cutout: '55%',
     plugins: {
-      legend: { position: 'right', labels: { color: theme.text, boxWidth: 12, boxHeight: 12 } },
+      legend: { position: compact ? 'bottom' : 'right', labels: { color: theme.text, boxWidth: 12, boxHeight: 12 } },
       tooltip: { callbacks: { label: item => `${item.label}: ${money(Number(item.raw), currency)} (${totalValue ? ((Number(item.raw) / totalValue) * 100).toFixed(1) : '0.0'}%)` } }
     }
   };
 
   return <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
-    <Card withBorder shadow="md" radius="lg" p="md" style={{ gridColumn: '1 / -1' }}>
+    <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }} style={{ gridColumn: '1 / -1' }}>
       <Title order={3} fz="md" mb="sm">Valor da carteira ao longo do tempo</Title>
-      <div style={{ height: 320 }}><Line data={valueData} options={cartesianOptions(theme, currency, monthYear, brDate) as ChartOptions<'line'>}/></div>
+      <div style={{ height: compact ? 260 : 320 }}><Line data={valueData} options={cartesianOptions(theme, currency, compact, monthYear, brDate) as ChartOptions<'line'>}/></div>
     </Card>
-    <Card withBorder shadow="md" radius="lg" p="md">
+    <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
       <Title order={3} fz="md" mb="sm">Renda de dividendos por ano</Title>
-      <div style={{ height: 280 }}><Bar data={dividendData} options={cartesianOptions(theme, currency, label => label, label => label) as ChartOptions<'bar'>}/></div>
+      <div style={{ height }}><Bar data={dividendData} options={cartesianOptions(theme, currency, compact, label => label, label => label) as ChartOptions<'bar'>}/></div>
     </Card>
-    <Card withBorder shadow="md" radius="lg" p="md">
+    <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
       <Title order={3} fz="md" mb="sm">Alocação no fim do período</Title>
-      <div style={{ height: 280 }}><Doughnut data={allocationData} options={allocationOptions}/></div>
+      <div style={{ height }}><Doughnut data={allocationData} options={allocationOptions}/></div>
     </Card>
   </SimpleGrid>;
 }

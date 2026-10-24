@@ -39,17 +39,17 @@ function dividendCards(result: SimulationResult): ResultCard[] {
 const toneColor: Record<NonNullable<ResultCard['tone']>, string> = { positive: 'matrix.4', negative: 'red.5' };
 
 function ResultMetric({ label, value, hint, tone }: ResultCard) {
-  return <Card withBorder shadow="md" radius="lg" p="md">
-    <Text size="xs" tt="uppercase" c="dimmed" fw={700}>{label}</Text>
-    <Text mt={4} fz={{ base: 22, sm: 26 }} fw={800} c={tone ? toneColor[tone] : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>{value}</Text>
-    {hint && <Text size="xs" c="dimmed" mt={2}>{hint}</Text>}
+  return <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
+    <Text fz={{ base: 10, sm: 'xs' }} tt="uppercase" c="dimmed" fw={700} lh={1.3}>{label}</Text>
+    <Text mt={4} fz={{ base: 18, sm: 26 }} fw={800} c={tone ? toneColor[tone] : undefined} style={{ fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{value}</Text>
+    {hint && <Text fz={{ base: 10, sm: 'xs' }} c="dimmed" mt={2} lh={1.3}>{hint}</Text>}
   </Card>;
 }
 
 function MetricSection({ title, cards, cols }: { title: string; cards: ResultCard[]; cols: Record<string, number> }) {
   return <Stack gap="xs">
     <Title order={3} fz="sm" tt="uppercase" c="dimmed" fw={800} style={{ letterSpacing: '0.08em' }}>{title}</Title>
-    <SimpleGrid cols={cols} spacing="md">
+    <SimpleGrid cols={cols} spacing={{ base: 'xs', sm: 'md' }}>
       {cards.map(card => <ResultMetric key={card.label} {...card} />)}
     </SimpleGrid>
   </Stack>;
@@ -90,8 +90,8 @@ export default function ResultsDashboard({ result, loading = false }: { result?:
       loaderProps={{ children: <Stack align="center" gap="xs" role="status" aria-live="polite"><Loader size="lg" /><Text fw={700}>{loadingTitle}</Text></Stack> }} />
     <Stack gap="lg" aria-busy={loading}>
       <ExchangeRateNote result={result} />
-      <MetricSection title="Desempenho" cards={performanceCards(result)} cols={{ base: 1, xs: 2, md: 3 }} />
-      <MetricSection title="Dividendos" cards={dividendCards(result)} cols={{ base: 1, xs: 2, md: 4 }} />
+      <MetricSection title="Desempenho" cards={performanceCards(result)} cols={{ base: 2, md: 3 }} />
+      <MetricSection title="Dividendos" cards={dividendCards(result)} cols={{ base: 2, md: 4 }} />
       <PortfolioCharts result={result}/>
       <ResultTables result={result}/>
     </Stack>

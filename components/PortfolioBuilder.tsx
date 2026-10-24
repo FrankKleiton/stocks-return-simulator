@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Card, Group, NumberInput, Popover, Stack, Text, TextInput, Title } from '@mantine/core';
-import { Info } from 'lucide-react';
+import { ActionIcon, Alert, Badge, Button, Card, Group, NumberInput, Popover, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
+import { Info, Trash2 } from 'lucide-react';
 import { ApiError, errorMessage, fetchJson } from '@/lib/clientFetch';
 import { currencySymbol } from '@/lib/metrics';
 import type { AssetInfo, Currency, PortfolioItem } from '@/lib/types';
@@ -61,7 +61,7 @@ export default function PortfolioBuilder({ items, setItems }: { items: Portfolio
 
   return <Card withBorder shadow="md" radius="lg" p={{ base: 'sm', sm: 'md' }}>
     <Stack gap="md">
-      <Group justify="space-between" align="center">
+      <Group justify="space-between" align="center" gap="xs">
         <Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Montador de carteira</Title>
         <Group gap="xs">
           <Button variant="light" size="xs" onClick={equal} disabled={!items.length}>Igualar</Button>
@@ -75,7 +75,7 @@ export default function PortfolioBuilder({ items, setItems }: { items: Portfolio
       <form action={addManual}><Group gap="xs" wrap="nowrap"><TextInput name="ticker" placeholder="Adicionar ativo, ex: WEGE3, XPML11, BOVA11 ou AAPL" autoComplete="off" style={{ flex: 1, minWidth: 0 }}/><Button type="submit">Adicionar</Button></Group></form>
       {issue && <Alert color="yellow" variant="light" withCloseButton onClose={() => setIssue(undefined)} py="xs">{issue}</Alert>}
       <Stack gap="xs">
-        {items.map((it, idx) => <Group key={it.ticker} gap="xs" wrap="nowrap" p="sm" className="portfolio-stock-row">
+        {items.map((it, idx) => <Group key={it.ticker} gap="xs" wrap="nowrap" p={{ base: 'xs', sm: 'sm' }} className="portfolio-stock-row">
           <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
             <Group gap="xs" wrap="nowrap">
               <Badge size="lg" radius="sm" variant="gradient" gradient={{ from: 'cyber.5', to: 'plasma.5', deg: 135 }} miw={76}>{it.ticker}</Badge>
@@ -83,15 +83,17 @@ export default function PortfolioBuilder({ items, setItems }: { items: Portfolio
             </Group>
             <Text size="xs" c="dimmed" lineClamp={1}>{it.name ?? (it.currency ? '' : 'Consultando ativo…')}</Text>
           </Stack>
-          <NumberInput aria-label={`Alocação de ${it.ticker}`} min={0} max={100} value={it.allocation} onChange={v => setItems(items.map((x, i) => i === idx ? { ...x, allocation: Number(v) || 0 } : x))} suffix="%" decimalScale={2} w={{ base: 110, sm: 140 }}/>
-          <Button variant="light" color="red" size="xs" onClick={() => setItems(items.filter(x => x.ticker !== it.ticker))}>Remover</Button>
+          <NumberInput aria-label={`Alocação de ${it.ticker}`} min={0} max={100} value={it.allocation} onChange={v => setItems(items.map((x, i) => i === idx ? { ...x, allocation: Number(v) || 0 } : x))} suffix="%" decimalScale={2} w={{ base: 92, sm: 140 }} hideControls/>
+          <Tooltip label={`Remover ${it.ticker}`}>
+            <ActionIcon variant="light" color="red" size="lg" aria-label={`Remover ${it.ticker}`} onClick={() => setItems(items.filter(x => x.ticker !== it.ticker))}><Trash2 size={16} /></ActionIcon>
+          </Tooltip>
         </Group>)}
         {!items.length && <Text size="sm" c="dimmed">Adicione ativos pelo campo acima: ações (WEGE3), FIIs (XPML11), ETFs (BOVA11, EXUS) ou stocks (AAPL).</Text>}
         {items.length > 0 && <Text size="xs" c={balanced ? 'dimmed' : 'yellow.6'}>
           Total alocado: {total}%{balanced ? '' : ' · os pesos serão ajustados proporcionalmente para 100% na simulação.'}
         </Text>}
         {currencies.size > 1 && <Alert color="plasma" variant="light" icon={<Info size={18} />} py="xs" title="Carteira com ativos em R$ e US$">
-          Os valores em dólar são convertidos para a moeda escolhida em &ldquo;Moeda do resultado&rdquo; pela cotação PTAX de cada dia (Banco Central). Na tabela de posições cada ativo também aparece na moeda original.
+          Os valores são convertidos para a &ldquo;Moeda do resultado&rdquo; pela PTAX de cada dia (Banco Central); a tabela de posições mostra cada ativo também na moeda original.
         </Alert>}
       </Stack>
     </Stack>

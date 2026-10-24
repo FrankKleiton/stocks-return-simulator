@@ -45,7 +45,7 @@ export default function Home() {
           <ColorSchemeToggle />
         </Group>
 
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mt="lg">
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mt="lg" visibleFrom="sm">
           {workflow.map(({ step, title, description, icon: Icon }) => <Box className="workflow-card" p="md" key={step}>
             <Group gap="sm" align="flex-start" wrap="nowrap">
               <ThemeIcon variant="light" color="cyber" radius="lg" size="lg"><Icon size={18} /></ThemeIcon>
