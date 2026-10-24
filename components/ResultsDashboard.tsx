@@ -26,10 +26,12 @@ function performanceCards(result: SimulationResult): ResultCard[] {
 function dividendCards(result: SimulationResult): ResultCard[] {
   const brl = (n: number) => money(n, result.currency);
   return [
+    { label: 'Renda anual média', value: brl(result.annualDividendIncome), hint: 'Dividendos ÷ anos simulados' },
+    { label: 'Renda mensal média', value: brl(result.annualDividendIncome / 12), hint: 'Renda anual média ÷ 12' },
+    { label: `Renda em ${result.lastFullYear}`, value: brl(result.lastFullYearDividendIncome), hint: 'Último ano completo' },
+    { label: `Renda mensal em ${result.lastFullYear}`, value: brl(result.lastFullYearDividendIncome / 12), hint: `Renda de ${result.lastFullYear} ÷ 12` },
     { label: 'Dividendos recebidos', value: brl(result.totalDividends), hint: 'Total no período' },
     { label: 'Dividendos reinvestidos', value: brl(result.totalDividendsReinvested) },
-    { label: 'Renda anual média', value: brl(result.annualDividendIncome), hint: 'Dividendos ÷ anos simulados' },
-    { label: `Renda em ${result.lastFullYear}`, value: brl(result.lastFullYearDividendIncome), hint: 'Último ano completo' },
     { label: 'Saldo em caixa', value: brl(result.cashBalance), hint: 'Dividendos não reinvestidos' }
   ];
 }
@@ -89,7 +91,7 @@ export default function ResultsDashboard({ result, loading = false }: { result?:
     <Stack gap="lg" aria-busy={loading}>
       <ExchangeRateNote result={result} />
       <MetricSection title="Desempenho" cards={performanceCards(result)} cols={{ base: 1, xs: 2, md: 3 }} />
-      <MetricSection title="Dividendos" cards={dividendCards(result)} cols={{ base: 1, xs: 2, md: 3, lg: 5 }} />
+      <MetricSection title="Dividendos" cards={dividendCards(result)} cols={{ base: 1, xs: 2, md: 4 }} />
       <PortfolioCharts result={result}/>
       <ResultTables result={result}/>
     </Stack>
