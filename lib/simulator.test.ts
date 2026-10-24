@@ -128,6 +128,17 @@ describe('portfolio simulator dividends', () => {
     expect(result.lastFullYearDividendIncome).toBe(200);
   });
 
+  test('leaves out payouts announced for after the end of the back test', () => {
+    const dividends = [
+      { ticker: 'TEST3', date: '2024-01-15', paymentDate: '2024-02-15', value: 1 },
+      { ticker: 'TEST3', date: '2024-02-20', paymentDate: '2024-04-15', value: 2 }
+    ];
+    const result = runSimulation(input('2024-01-01'), { TEST3: { prices: data.TEST3.prices, dividends } });
+
+    expect(result.dividends.map(d => d.paymentDate)).toEqual(['2024-02-15']);
+    expect(result.totalDividends).toBe(100);
+  });
+
   test('does not annualise dividend income for back tests shorter than a year', () => {
     const result = runSimulation(input('2024-01-01'), data);
 

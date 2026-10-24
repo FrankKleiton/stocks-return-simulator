@@ -1,100 +1,69 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { Badge, Box, Button, Card, Container, Group, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
+import { useEffect, useRef, useState } from 'react';
+import { Badge, Box, Container, Group, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import PortfolioBuilder from '@/components/PortfolioBuilder';
 import SimulationForm from '@/components/SimulationForm';
 import ResultsDashboard from '@/components/ResultsDashboard';
 import ColorSchemeToggle from '@/components/ColorSchemeToggle';
-import { BarChart3, LineChart, ShieldCheck, Sparkles, WalletCards } from 'lucide-react';
+import { LineChart, SlidersHorizontal, WalletCards } from 'lucide-react';
 import type { PortfolioItem, SimulationResult } from '@/lib/types';
 
 const workflow = [
-  { step: '01', title: 'Montar', description: 'Crie uma carteira e defina as alocações.', icon: WalletCards },
-  { step: '02', title: 'Simular', description: 'Rode cenários históricos com dividendos.', icon: LineChart },
-  { step: '03', title: 'Descobrir', description: 'Use sinais classificados de qualidade, valuation e FCL.', icon: Sparkles }
-];
-
-const highlights = [
-  ['80+', 'ações classificadas'],
-  ['10a', 'janela de FCL'],
-  ['3', 'cenários de valuation']
+  { step: '01', title: 'Montar', description: 'Adicione ações, FIIs, ETFs ou stocks e defina o peso de cada um.', icon: WalletCards },
+  { step: '02', title: 'Configurar', description: 'Escolha o período, o investimento inicial, os aportes e o que fazer com os dividendos.', icon: SlidersHorizontal },
+  { step: '03', title: 'Analisar', description: 'Compare retorno, renda de dividendos, posições e transações ao longo do tempo.', icon: LineChart }
 ];
 
 export default function Home() {
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [result, setResult] = useState<SimulationResult>();
   const [running, setRunning] = useState(false);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('portfolio');
     if (saved) setPortfolio(JSON.parse(saved));
   }, []);
 
+  // The results render below the fold on wide screens, so bring them into view when a run finishes.
+  useEffect(() => {
+    if (result) resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [result]);
+
   return <Container size="xl" px={{ base: 'xs', sm: 'md', lg: 'xl' }} py={{ base: 'md', sm: 'xl' }}>
     <Stack gap="xl">
       <Box component="header" className="hero-shell" p={{ base: 'md', sm: 'xl' }}>
-        <Group justify="space-between" align="center" gap="md" mb="xl">
-          <Group gap="xs">
-            <Badge color="cyber" variant="light" size="lg">Dados do Investidor10</Badge>
-            <Badge color="plasma" variant="light" size="lg">Análises com Chart.js</Badge>
-            <Badge color="matrix" variant="light" size="lg">Simulador de dividendos</Badge>
-          </Group>
+        <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md">
+          <Stack gap="sm">
+            <Group gap="xs">
+              <Badge color="cyber" variant="light" size="lg">Dados do Investidor10</Badge>
+              <Badge color="plasma" variant="light" size="lg">Ações B3 · FIIs · ETFs · Stocks US</Badge>
+            </Group>
+            <Title className="hero-title" order={1} fz={{ base: 32, sm: 44, md: 52 }} lh={1.05}>Simulador histórico de carteira</Title>
+            <Text maw={720} c="dimmed" fz={{ base: 'sm', sm: 'md' }} lh={1.6}>Monte uma carteira, escolha o período e veja como ela teria se comportado com aportes mensais e dividendos reinvestidos ou recebidos em dinheiro.</Text>
+          </Stack>
           <ColorSchemeToggle />
         </Group>
 
-        <SimpleGrid cols={{ base: 1, md: 2 }} spacing={{ base: 'xl', md: 48 }} verticalSpacing="xl">
-          <Stack gap="lg" justify="center">
-            <Group gap="xs">
-              <ThemeIcon variant="light" color="cyber" radius="xl" size="lg"><BarChart3 size={18} /></ThemeIcon>
-              <Text size="xs" fw={800} tt="uppercase" c="cyber.3" style={{ letterSpacing: '0.22em' }}>Inteligência do Mercado Brasileiro</Text>
-            </Group>
-            <Title className="hero-title" order={1} fz={{ base: 38, sm: 58, md: 78 }} lh={0.94}>Invista com mais clareza histórica</Title>
-            <Text maw={760} c="dimmed" fz={{ base: 'md', sm: 'xl' }} lh={1.65}>Monte carteiras de ações brasileiras, faça backtests de cenários com dividendos e analise sinais transparentes de qualidade, valuation e fluxo de caixa livre histórico em um só lugar.</Text>
-            <Group gap="sm">
-              <Button size="md" radius="xl" onClick={() => document.getElementById('portfolio-builder')?.scrollIntoView({ behavior: 'smooth' })}>Montar carteira</Button>
-            </Group>
-          </Stack>
-
-          <Card className="hero-insight-card" withBorder radius="xl" p="xl">
-            <Stack gap="lg">
-              <Group justify="space-between" align="flex-start">
-                <div>
-                  <Text size="xs" fw={800} tt="uppercase" c="dimmed">Resumo analítico</Text>
-                  <Title order={2} fz={{ base: 24, sm: 32 }}>Visão de qualidade + fluxo de caixa</Title>
-                </div>
-                <ThemeIcon variant="gradient" gradient={{ from: 'cyber', to: 'plasma' }} radius="xl" size={48}><ShieldCheck size={24} /></ThemeIcon>
-              </Group>
-              <SimpleGrid cols={3} spacing="sm">
-                {highlights.map(([value, label]) => <Box className="hero-stat" key={label} p="md">
-                  <Text fw={900} fz={{ base: 24, sm: 30 }}>{value}</Text>
-                  <Text size="xs" c="dimmed" tt="uppercase" fw={700}>{label}</Text>
-                </Box>)}
-              </SimpleGrid>
-              <Text size="sm" c="dimmed">Feito para evitar falsa precisão: sem rótulos de compra/venda, sem valor justo por ação fictício — apenas premissas visíveis e alertas úteis.</Text>
-            </Stack>
-          </Card>
-        </SimpleGrid>
-
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mt="xl">
-          {workflow.map(({ step, title, description, icon: Icon }) => <Card className="workflow-card" withBorder radius="xl" p="lg" key={step}>
-            <Group gap="sm" align="flex-start">
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mt="lg">
+          {workflow.map(({ step, title, description, icon: Icon }) => <Box className="workflow-card" p="md" key={step}>
+            <Group gap="sm" align="flex-start" wrap="nowrap">
               <ThemeIcon variant="light" color="cyber" radius="lg" size="lg"><Icon size={18} /></ThemeIcon>
               <div>
-                <Text size="xs" fw={900} c="cyber.3">{step}</Text>
-                <Text fw={800} fz="lg" mt={2}>{title}</Text>
+                <Text size="xs" fw={900} c="cyber.3">{step} · {title}</Text>
                 <Text size="sm" c="dimmed" mt={2}>{description}</Text>
               </div>
             </Group>
-          </Card>)}
+          </Box>)}
         </SimpleGrid>
       </Box>
 
-      <Stack gap="lg">
+      <div className="dashboard-grid">
         <Box id="portfolio-builder"><PortfolioBuilder items={portfolio} setItems={setPortfolio}/></Box>
-        <SimulationForm holdings={portfolio} onResult={setResult} onRunningChange={setRunning}/>
-        <ResultsDashboard result={result} loading={running}/>
-      </Stack>
-      <Text pb="xl" size="xs" c="dimmed">Apenas para fins educacionais. Os resultados são aproximações históricas, não são conselhos de investimento.</Text>
+        <Box className="dashboard-aside"><SimulationForm holdings={portfolio} onResult={setResult} onRunningChange={setRunning}/></Box>
+      </div>
+      <div ref={resultsRef}><ResultsDashboard result={result} loading={running}/></div>
+      <Text pb="xl" size="xs" c="dimmed">Apenas para fins educacionais. Os resultados são aproximações históricas, não são conselhos de investimento. Ativos cotados em dólar (stocks e ETFs globais) são exibidos com o símbolo R$, mas os valores estão na moeda original.</Text>
     </Stack>
   </Container>;
 }

@@ -93,21 +93,12 @@ body {
   pointer-events: none;
 }
 .hero-shell > * { position: relative; z-index: 1; }
-.hero-insight-card { min-height: 100%; }
-.recommendations-shell {
-  background:
-    linear-gradient(135deg, rgba(34, 211, 238, 0.10), rgba(139, 92, 246, 0.08) 46%, rgba(16, 185, 129, 0.06)),
-    rgba(2, 6, 23, 0.58) !important;
-}
-.hero-stat {
-  border: 1px solid rgba(34, 211, 238, 0.16);
-  border-radius: 18px;
-  background: rgba(2, 6, 23, 0.34);
-}
-
 .workflow-card {
   position: relative;
   overflow: hidden;
+  border: 1px solid var(--tech-border);
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.34);
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 .workflow-card:hover {
@@ -124,12 +115,11 @@ body {
 }
 
 .dashboard-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
-@media (min-width: 1024px) { .dashboard-grid { gap: 1.5rem; grid-template-columns: minmax(0, 1fr) 420px; } }
-.card { @apply rounded-2xl border border-white/10 bg-white/[0.04] shadow-xl shadow-black/20; }
-.input { @apply rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500; }
-.btn { @apply rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-50; }
-.btn-secondary { @apply rounded-lg border border-white/10 px-3 py-2 text-sm hover:bg-white/10; }
-
+@media (min-width: 1024px) {
+  .dashboard-grid { gap: 1.5rem; grid-template-columns: minmax(0, 1fr) 440px; }
+  /* Keeps the run button in reach while a long wallet is edited on the left. */
+  .dashboard-aside { position: sticky; top: 1rem; }
+}
 [data-mantine-color-scheme='light'] {
   --tech-bg: #f8fafc;
   --tech-surface: #ffffff;
@@ -164,16 +154,7 @@ body {
   box-shadow: 0 24px 80px rgba(15,23,42,0.10), inset 0 1px 0 rgba(255,255,255,0.70);
 }
 
-[data-mantine-color-scheme='light'] .hero-stat {
-  border-color: rgba(14, 116, 144, 0.16);
-  background: rgba(255, 255, 255, 0.66);
-}
-
-[data-mantine-color-scheme='light'] .recommendations-shell {
-  background:
-    linear-gradient(135deg, rgba(14, 116, 144, 0.08), rgba(124, 58, 237, 0.06) 46%, rgba(5, 150, 105, 0.05)),
-    rgba(255, 255, 255, 0.78) !important;
-}
+[data-mantine-color-scheme='light'] .workflow-card { background: rgba(255, 255, 255, 0.66); }
 
 [data-mantine-color-scheme='light'] .mantine-Input-input {
   background: rgba(255, 255, 255, 0.86) !important;

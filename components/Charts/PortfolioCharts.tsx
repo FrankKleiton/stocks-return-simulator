@@ -1,24 +1,42 @@
 'use client';
-import { Card, SimpleGrid, Title } from '@mantine/core';
-import type { ChartOptions } from 'chart.js';
+import { Card, SimpleGrid, Title, useComputedColorScheme } from '@mantine/core';
+import type { ChartOptions, Scale, TooltipItem } from 'chart.js';
 import { ArcElement, BarElement, CategoryScale, Chart as ChartJS, Filler, Legend, LinearScale, LineElement, PointElement, Tooltip } from 'chart.js';
-import { Bar, Line, Pie } from 'react-chartjs-2';
+import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import type { SimulationResult } from '@/lib/types';
+import { brDate, brl, brlCompact, monthYear } from '@/lib/metrics';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler);
 
-const colors = ['#22d3ee', '#8b5cf6', '#10b981', '#f59e0b', '#f472b6', '#84cc16', '#fb7185'];
-const commonOptions: ChartOptions<'line' | 'bar'> = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { labels: { color: '#cbd5e1' } }, tooltip: { mode: 'index', intersect: false } },
-  scales: {
-    x: { ticks: { color: '#94a3b8', maxTicksLimit: 8 }, grid: { color: 'rgba(148,163,184,0.12)' } },
-    y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.12)' } }
-  }
-};
+const palette = ['#22d3ee', '#8b5cf6', '#10b981', '#f59e0b', '#f472b6', '#84cc16', '#fb7185', '#38bdf8'];
+
+/** Chart.js paints onto a canvas, so the theme colours must be passed in rather than inherited from CSS. */
+function chartTheme(dark: boolean) {
+  return { text: dark ? '#cbd5e1' : '#334155', muted: dark ? '#94a3b8' : '#64748b', grid: dark ? 'rgba(148,163,184,0.12)' : 'rgba(15,23,42,0.08)', surface: dark ? '#07111f' : '#ffffff' };
+}
+
+const money = (item: TooltipItem<'line' | 'bar'>) => `${item.dataset.label}: ${brl(Number(item.raw))}`;
+
+function cartesianOptions(theme: ReturnType<typeof chartTheme>, xLabel: (label: string) => string, titleLabel: (label: string) => string): ChartOptions<'line' | 'bar'> {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: theme.text, boxWidth: 12, boxHeight: 12 } },
+      tooltip: { callbacks: { title: items => titleLabel(String(items[0]?.label ?? '')), label: money } }
+    },
+    scales: {
+      x: { ticks: { color: theme.muted, maxTicksLimit: 8, maxRotation: 0, callback(this: Scale, value) { return xLabel(this.getLabelForValue(Number(value))); } }, grid: { color: theme.grid } },
+      y: { ticks: { color: theme.muted, callback: value => brlCompact(Number(value)) }, grid: { color: theme.grid } }
+    }
+  };
+}
 
 export default function PortfolioCharts({ result }: { result: SimulationResult }) {
+  const dark = useComputedColorScheme('dark') === 'dark';
+  const theme = chartTheme(dark);
+
   const valueData = {
     labels: result.series.map(p => p.date),
     datasets: [
@@ -28,16 +46,33 @@ export default function PortfolioCharts({ result }: { result: SimulationResult }
   };
   const dividendData = {
     labels: result.dividendsByYear.map(d => d.year),
-    datasets: [{ label: 'Renda de dividendos', data: result.dividendsByYear.map(d => d.amount), backgroundColor: '#10b981' }]
+    datasets: [{ label: 'Renda de dividendos', data: result.dividendsByYear.map(d => d.amount), backgroundColor: '#10b981', borderRadius: 4 }]
   };
+  const totalValue = result.allocation.reduce((sum, a) => sum + a.value, 0);
   const allocationData = {
     labels: result.allocation.map(a => a.ticker),
-    datasets: [{ data: result.allocation.map(a => a.value), backgroundColor: result.allocation.map((_, i) => colors[i % colors.length]), borderColor: '#22d3ee', borderWidth: 1.5 }]
+    datasets: [{ data: result.allocation.map(a => a.value), backgroundColor: result.allocation.map((_, i) => palette[i % palette.length]), borderColor: theme.surface, borderWidth: 2 }]
+  };
+  const allocationOptions: ChartOptions<'doughnut'> = {
+    responsive: true, maintainAspectRatio: false, cutout: '55%',
+    plugins: {
+      legend: { position: 'right', labels: { color: theme.text, boxWidth: 12, boxHeight: 12 } },
+      tooltip: { callbacks: { label: item => `${item.label}: ${brl(Number(item.raw))} (${totalValue ? ((Number(item.raw) / totalValue) * 100).toFixed(1) : '0.0'}%)` } }
+    }
   };
 
   return <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
-    <Card withBorder shadow="md" radius="lg" p="md"><Title order={3} fz="md" mb="sm">Valor da carteira ao longo do tempo</Title><div style={{ height: 280 }}><Line data={valueData} options={commonOptions as ChartOptions<'line'>}/></div></Card>
-    <Card withBorder shadow="md" radius="lg" p="md"><Title order={3} fz="md" mb="sm">Renda de dividendos por ano</Title><div style={{ height: 280 }}><Bar data={dividendData} options={commonOptions as ChartOptions<'bar'>}/></div></Card>
-    <Card withBorder shadow="md" radius="lg" p="md"><Title order={3} fz="md" mb="sm">Alocação da carteira</Title><div style={{ height: 280 }}><Pie data={allocationData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#cbd5e1' } } } }}/></div></Card>
+    <Card withBorder shadow="md" radius="lg" p="md" style={{ gridColumn: '1 / -1' }}>
+      <Title order={3} fz="md" mb="sm">Valor da carteira ao longo do tempo</Title>
+      <div style={{ height: 320 }}><Line data={valueData} options={cartesianOptions(theme, monthYear, brDate) as ChartOptions<'line'>}/></div>
+    </Card>
+    <Card withBorder shadow="md" radius="lg" p="md">
+      <Title order={3} fz="md" mb="sm">Renda de dividendos por ano</Title>
+      <div style={{ height: 280 }}><Bar data={dividendData} options={cartesianOptions(theme, label => label, label => label) as ChartOptions<'bar'>}/></div>
+    </Card>
+    <Card withBorder shadow="md" radius="lg" p="md">
+      <Title order={3} fz="md" mb="sm">Alocação no fim do período</Title>
+      <div style={{ height: 280 }}><Doughnut data={allocationData} options={allocationOptions}/></div>
+    </Card>
   </SimpleGrid>;
 }

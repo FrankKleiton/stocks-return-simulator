@@ -89,10 +89,11 @@ function buyHoldings(holdings: SimHolding[], data: MarketData, date: string, amo
   }
 }
 
+/** Payouts whose data-com falls in the period; payments announced for after the end date never happen in the simulation, so they are left out. */
 function collectDividends(input: SimulationInput, data: MarketData) {
   return Object.values(data)
     .flatMap(item => item.dividends)
-    .filter(dividend => within(dividend.date, input.startDate, input.endDate))
+    .filter(dividend => within(dividend.date, input.startDate, input.endDate) && dividend.paymentDate <= input.endDate)
     .sort((a, b) => byDate(a.date, b.date));
 }
 

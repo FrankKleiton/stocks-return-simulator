@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { Alert, Button, Card, NumberInput, Select, SimpleGrid, Stack, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Card, NumberInput, Select, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
 import { AlertTriangle } from 'lucide-react';
 import { errorMessage, fetchJson } from '@/lib/clientFetch';
 import type { DividendMode, PortfolioItem, SimulationInput, SimulationResult } from '@/lib/types';
@@ -30,16 +30,9 @@ const defaultSimulatorValues = {
   dividendMode: 'reinvest' as DividendMode
 };
 
-function simulationInputFromForm(form: FormData, holdings: PortfolioItem[]): SimulationInput {
-  return {
-    holdings,
-    startDate: String(form.get('startDate')),
-    endDate: String(form.get('endDate')),
-    initialInvestment: Number(form.get('initialInvestment')),
-    monthlyContribution: Number(form.get('monthlyContribution')),
-    dividendMode: String(form.get('dividendMode')) as DividendMode
-  };
-}
+type SimulatorValues = typeof defaultSimulatorValues;
+
+const moneyInputProps = { prefix: 'R$ ', thousandSeparator: '.', decimalSeparator: ',', decimalScale: 2, min: 0, hideControls: true } as const;
 
 interface SimulationFormProps {
   holdings: PortfolioItem[];
@@ -56,7 +49,7 @@ export default function SimulationForm({ holdings, onResult, onRunningChange }: 
   useEffect(() => {
     const saved = localStorage.getItem(simulatorStorageKey);
     if (!saved) return;
-    const parsed = JSON.parse(saved) as Partial<typeof defaultSimulatorValues>;
+    const parsed = JSON.parse(saved) as Partial<SimulatorValues>;
     setValues(current => ({
       ...current,
       ...parsed,
@@ -65,20 +58,18 @@ export default function SimulationForm({ holdings, onResult, onRunningChange }: 
     }));
   }, []);
 
+  const update = <K extends keyof SimulatorValues>(key: K, value: SimulatorValues[K]) => setValues(current => ({ ...current, [key]: value }));
+  const invalidRange = values.startDate > values.endDate;
+
   // A plain submit handler, not a React 19 form `action`: actions run inside a
   // transition, so state set there only commits once the request finishes and
-  // the loading state would never be shown.
+  // the loading state would never be shown. The inputs are controlled, so the
+  // request is built from state rather than from the (formatted) form fields.
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (running) return;
-    const input = simulationInputFromForm(new FormData(event.currentTarget), holdings);
-    localStorage.setItem(simulatorStorageKey, JSON.stringify({
-      startDate: input.startDate,
-      endDate: input.endDate,
-      initialInvestment: input.initialInvestment,
-      monthlyContribution: input.monthlyContribution,
-      dividendMode: input.dividendMode
-    }));
+    if (running || invalidRange) return;
+    const input: SimulationInput = { holdings, ...values };
+    localStorage.setItem(simulatorStorageKey, JSON.stringify(values));
     setRunning(true);
     onRunningChange?.(true);
     setError(undefined);
@@ -97,21 +88,18 @@ export default function SimulationForm({ holdings, onResult, onRunningChange }: 
       <Title order={2} fz={{ base: 'lg', sm: 'xl' }}>Simulador histórico</Title>
       <form onSubmit={submit}>
         <Stack gap="sm">
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 1 }} spacing="sm">
-            <TextInput label="Data inicial" name="startDate" type="date" value={values.startDate} max={today()} required onChange={event => {
-              const startDate = clampToToday(event.currentTarget.value);
-              setValues(current => ({ ...current, startDate }));
-            }}/>
-            <TextInput label="Data final" name="endDate" type="date" value={values.endDate} max={today()} required onChange={event => {
-              const endDate = clampToToday(event.currentTarget.value);
-              setValues(current => ({ ...current, endDate }));
-            }}/>
-            <NumberInput label="Investimento inicial" name="initialInvestment" value={values.initialInvestment} onChange={value => setValues(current => ({ ...current, initialInvestment: Number(value) || 0 }))} min={0}/>
-            <NumberInput label="Aporte mensal" name="monthlyContribution" value={values.monthlyContribution} onChange={value => setValues(current => ({ ...current, monthlyContribution: Number(value) || 0 }))} min={0}/>
+          <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
+            <TextInput label="Data inicial" type="date" value={values.startDate} max={today()} required error={invalidRange ? 'Depois da data final' : undefined}
+              onChange={event => update('startDate', clampToToday(event.currentTarget.value))}/>
+            <TextInput label="Data final" type="date" value={values.endDate} max={today()} required
+              onChange={event => update('endDate', clampToToday(event.currentTarget.value))}/>
+            <NumberInput label="Investimento inicial" value={values.initialInvestment} onChange={value => update('initialInvestment', Number(value) || 0)} {...moneyInputProps}/>
+            <NumberInput label="Aporte mensal" value={values.monthlyContribution} onChange={value => update('monthlyContribution', Number(value) || 0)} {...moneyInputProps}/>
           </SimpleGrid>
-          <Select label="Dividendos" name="dividendMode" value={values.dividendMode} onChange={value => setValues(current => ({ ...current, dividendMode: (value ?? 'reinvest') as DividendMode }))} data={dividendModeOptions}/>
+          <Select label="Dividendos" value={values.dividendMode} onChange={value => update('dividendMode', (value ?? 'reinvest') as DividendMode)} data={dividendModeOptions} allowDeselect={false}/>
           {error && <Alert color="red" variant="light" icon={<AlertTriangle size={18} />} title="A simulação falhou">{error}</Alert>}
-          <Button type="submit" fullWidth loading={running} disabled={!holdings.length}>{running ? 'Rodando simulação…' : 'Rodar simulação'}</Button>
+          <Button type="submit" fullWidth loading={running} disabled={!holdings.length || invalidRange}>{running ? 'Rodando simulação…' : 'Rodar simulação'}</Button>
+          {!holdings.length && <Text size="xs" c="dimmed" ta="center">Adicione pelo menos um ativo à carteira para rodar a simulação.</Text>}
         </Stack>
       </form>
     </Stack>

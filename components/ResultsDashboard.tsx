@@ -1,34 +1,53 @@
 'use client';
 
-import { Box, Card, Loader, LoadingOverlay, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Box, Card, Loader, LoadingOverlay, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import type { SimulationResult } from '@/lib/types';
 import { brl, pct } from '@/lib/metrics';
 import PortfolioCharts from './Charts/PortfolioCharts';
 import ResultTables from './Tables/ResultTables';
 
-type ResultCard = [label: string, value: string];
+interface ResultCard { label: string; value: string; hint?: string; tone?: 'positive' | 'negative' }
 
-function resultCards(result: SimulationResult): ResultCard[] {
+const signed = (value: number): ResultCard['tone'] => (value >= 0 ? 'positive' : 'negative');
+
+function performanceCards(result: SimulationResult): ResultCard[] {
   return [
-    ['Valor investido', brl(result.totalInvested)],
-    ['Valor final', brl(result.finalValue)],
-    ['Retorno total', pct(result.totalReturn)],
-    ['Retorno money-weighted (TIR)', pct(result.moneyWeightedAnnualizedReturn)],
-    ['Retorno time-weighted (TWR)', pct(result.timeWeightedAnnualizedReturn)],
-    ['Dividendos recebidos', brl(result.totalDividends)],
-    ['Dividendos reinvestidos', brl(result.totalDividendsReinvested)],
-    ['Renda anual de dividendos média', brl(result.annualDividendIncome)],
-    [`Renda anual de dividendos (${result.lastFullYear})`, brl(result.lastFullYearDividendIncome)],
-    ['Saldo em caixa', brl(result.cashBalance)],
-    ['Melhor / pior', `${result.best?.ticker ?? '-'} / ${result.worst?.ticker ?? '-'}`]
+    { label: 'Valor investido', value: brl(result.totalInvested), hint: 'Investimento inicial + aportes mensais' },
+    { label: 'Valor final', value: brl(result.finalValue), hint: 'Posições + saldo em caixa no fim do período' },
+    { label: 'Retorno total', value: pct(result.totalReturn), tone: signed(result.totalReturn), hint: 'Sobre o valor investido' },
+    { label: 'Retorno anual (TIR)', value: pct(result.moneyWeightedAnnualizedReturn), tone: signed(result.moneyWeightedAnnualizedReturn), hint: 'Money-weighted: considera as datas dos aportes' },
+    { label: 'Retorno anual (TWR)', value: pct(result.timeWeightedAnnualizedReturn), tone: signed(result.timeWeightedAnnualizedReturn), hint: 'Time-weighted: independe do momento dos aportes' },
+    { label: 'Melhor / pior ativo', value: `${result.best?.ticker ?? '-'} / ${result.worst?.ticker ?? '-'}`, hint: result.best && result.worst ? `${pct(result.best.returnPct)} / ${pct(result.worst.returnPct)}` : undefined }
   ];
 }
 
-function ResultMetric({ label, value }: { label: string; value: string }) {
+function dividendCards(result: SimulationResult): ResultCard[] {
+  return [
+    { label: 'Dividendos recebidos', value: brl(result.totalDividends), hint: 'Total no período' },
+    { label: 'Dividendos reinvestidos', value: brl(result.totalDividendsReinvested) },
+    { label: 'Renda anual média', value: brl(result.annualDividendIncome), hint: 'Dividendos ÷ anos simulados' },
+    { label: `Renda em ${result.lastFullYear}`, value: brl(result.lastFullYearDividendIncome), hint: 'Último ano completo' },
+    { label: 'Saldo em caixa', value: brl(result.cashBalance), hint: 'Dividendos não reinvestidos' }
+  ];
+}
+
+const toneColor: Record<NonNullable<ResultCard['tone']>, string> = { positive: 'matrix.4', negative: 'red.5' };
+
+function ResultMetric({ label, value, hint, tone }: ResultCard) {
   return <Card withBorder shadow="md" radius="lg" p="md">
     <Text size="xs" tt="uppercase" c="dimmed" fw={700}>{label}</Text>
-    <Text mt={4} fz={{ base: 22, sm: 26 }} fw={800}>{value}</Text>
+    <Text mt={4} fz={{ base: 22, sm: 26 }} fw={800} c={tone ? toneColor[tone] : undefined} style={{ fontVariantNumeric: 'tabular-nums' }}>{value}</Text>
+    {hint && <Text size="xs" c="dimmed" mt={2}>{hint}</Text>}
   </Card>;
+}
+
+function MetricSection({ title, cards, cols }: { title: string; cards: ResultCard[]; cols: Record<string, number> }) {
+  return <Stack gap="xs">
+    <Title order={3} fz="sm" tt="uppercase" c="dimmed" fw={800} style={{ letterSpacing: '0.08em' }}>{title}</Title>
+    <SimpleGrid cols={cols} spacing="md">
+      {cards.map(card => <ResultMetric key={card.label} {...card} />)}
+    </SimpleGrid>
+  </Stack>;
 }
 
 const loadingTitle = 'Rodando a simulação…';
@@ -51,10 +70,9 @@ export default function ResultsDashboard({ result, loading = false }: { result?:
   return <Box pos="relative">
     <LoadingOverlay visible={loading} zIndex={10} overlayProps={{ radius: 'lg', blur: 2 }}
       loaderProps={{ children: <Stack align="center" gap="xs" role="status" aria-live="polite"><Loader size="lg" /><Text fw={700}>{loadingTitle}</Text></Stack> }} />
-    <Stack gap="md" aria-busy={loading}>
-      <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="md">
-        {resultCards(result).map(([label, value]) => <ResultMetric key={label} label={label} value={value} />)}
-      </SimpleGrid>
+    <Stack gap="lg" aria-busy={loading}>
+      <MetricSection title="Desempenho" cards={performanceCards(result)} cols={{ base: 1, xs: 2, md: 3 }} />
+      <MetricSection title="Dividendos" cards={dividendCards(result)} cols={{ base: 1, xs: 2, md: 3, lg: 5 }} />
       <PortfolioCharts result={result}/>
       <ResultTables result={result}/>
     </Stack>
