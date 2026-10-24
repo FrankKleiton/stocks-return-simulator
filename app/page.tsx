@@ -63,7 +63,7 @@ export default function Home() {
         <Box className="dashboard-aside"><SimulationForm holdings={portfolio} onResult={setResult} onRunningChange={setRunning}/></Box>
       </div>
       <div ref={resultsRef}><ResultsDashboard result={result} loading={running}/></div>
-      <Text pb="xl" size="xs" c="dimmed">Apenas para fins educacionais. Os resultados são aproximações históricas, não são conselhos de investimento. Ativos cotados em dólar (stocks e ETFs globais) são exibidos com o símbolo R$, mas os valores estão na moeda original.</Text>
+      <Text pb="xl" size="xs" c="dimmed">Apenas para fins educacionais. Os resultados são aproximações históricas, não são conselhos de investimento. Ativos cotados em dólar (stocks e ETFs globais) são convertidos para a moeda do resultado pela PTAX diária do Banco Central; escolha "Dólar (US$)" no simulador para ver tudo em dólar.</Text>
     </Stack>
   </Container>;
 }

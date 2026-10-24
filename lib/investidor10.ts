@@ -13,7 +13,7 @@
 import { cached, retry } from './cache';
 import { isUpstreamError, UpstreamError } from './upstreamError';
 import type { AnnualEarningsPoint, EarningsDataAdapter } from './earningsValuation';
-import type { DividendPoint, IndicatorPoint, PricePoint, StockSummary } from './types';
+import type { AssetInfo, Currency, DividendPoint, IndicatorPoint, PricePoint, StockSummary } from './types';
 
 const HOUR = 1000 * 60 * 60;
 const DAY = 24 * HOUR;
@@ -219,6 +219,8 @@ export function candidateKinds(ticker: string): AssetKind[] {
 export interface CompanyPage {
   ticker: string;
   kind: AssetKind;
+  /** Currency the quotes, dividends and figures below are in: USD for US stocks and foreign ETFs, BRL otherwise. */
+  currency: Currency;
   /** Id of the indicator-history endpoint: the ticker id of a B3 share, or the stock/fund id. */
   tickerId: number;
   /** Id of the statement endpoints: the company id of a B3 share, the stock id of a US stock, 0 for a FII or ETF. */
@@ -226,14 +228,14 @@ export interface CompanyPage {
   name: string;
   sector?: string;
   segment?: string;
-  /** Average daily traded volume (R$, or US$ for US stocks). */
+  /** Average daily traded volume in `currency`. */
   liquidity: number;
-  /** Market cap (R$, or US$ for US stocks and foreign ETFs); FII pages do not print it, so it is 0 there. */
+  /** Market cap in `currency`; FII pages do not print it, so it is 0 there. */
   marketCap: number;
   dividends: DividendPoint[];
 }
 
-type PageFacts = Omit<CompanyPage, 'ticker' | 'kind' | 'dividends'>;
+type PageFacts = Omit<CompanyPage, 'ticker' | 'kind' | 'currency' | 'dividends'>;
 
 const pageTitle = (html: string) => stripTags(html.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? '');
 
@@ -314,12 +316,25 @@ export function parseDividendTable(ticker: string, html: string): DividendPoint[
     .sort((a, b) => a.paymentDate.localeCompare(b.paymentDate) || a.date.localeCompare(b.date));
 }
 
+/** US stocks are always in US$; an ETF page prints its capitalisation card in the fund's currency ("US$ 90,96 M" for EXUS, "R$ 18,87 B" for BOVA11). */
+function assetCurrency(kind: AssetKind, html: string): Currency {
+  if (kind === 'stock') return 'USD';
+  if (kind === 'etf' && /^US\$/.test(tickerCard(html, 'Capitalização') ?? '')) return 'USD';
+  return 'BRL';
+}
+
 /** The dividend table has the same layout on every kind of page; ids and company facts differ per kind. */
 export function parseCompanyPage(ticker: string, html: string, kind: AssetKind = 'acao', url = `${baseUrl()}${ENDPOINTS[kind].page(ticker)}`): CompanyPage {
   const t = normalizeTicker(ticker);
   const facts = PAGE_PARSERS[kind](html);
   if (!facts) throw unexpectedFormat(url, 'página sem os identificadores da empresa');
-  return { ticker: t, kind, ...facts, dividends: parseDividendTable(t, html) };
+  return { ticker: t, kind, currency: assetCurrency(kind, html), ...facts, dividends: parseDividendTable(t, html) };
+}
+
+/** What the UI needs before simulating a ticker: the section it was found in, its name and its currency. */
+export async function fetchAssetInfo(ticker: string): Promise<AssetInfo> {
+  const company = await fetchCompany(ticker);
+  return { ticker: company.ticker, name: company.name, kind: company.kind, currency: company.currency };
 }
 
 /** Finds the ticker in the most likely section of the site; "gone" answers move on to the next section. */

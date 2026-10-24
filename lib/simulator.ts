@@ -1,7 +1,15 @@
-import { fetchDividends, fetchPrices } from './investidor10';
-import type { DividendPoint, HoldingResult, PortfolioItem, PricePoint, SimulationInput, SimulationResult, TimePoint, Transaction } from './types';
+import { fetchCompany, fetchDividends, fetchPrices } from './investidor10';
+import { conversionFactor, EXCHANGE_RATE_SOURCE, fetchUsdBrlRates, rateOn } from './exchangeRates';
+import type { Currency, DividendPoint, ExchangeRateInfo, HoldingResult, PortfolioItem, PricePoint, SimulationInput, SimulationResult, TimePoint, Transaction } from './types';
 
-type MarketData = Record<string, { prices: PricePoint[]; dividends: DividendPoint[] }>;
+/**
+ * Per-ticker prices and dividends, already expressed in the simulation's reporting currency. `currency` is the
+ * currency the asset is quoted in and `nativePrices` its unconverted series; both default to the reporting currency.
+ */
+export type MarketData = Record<string, { prices: PricePoint[]; dividends: DividendPoint[]; currency?: Currency; nativePrices?: PricePoint[] }>;
+
+const DEFAULT_CURRENCY: Currency = 'BRL';
+const reportingCurrency = (input: Pick<SimulationInput, 'currency'>) => input.currency ?? DEFAULT_CURRENCY;
 type SimHolding = PortfolioItem & { shares: number; cost: number; dividends: number; reinvestedDividends: number };
 type CashFlow = { date: string; amount: number };
 type PendingDividend = { dividend: DividendPoint; amount: number };
@@ -111,11 +119,13 @@ function valueHoldings(holdings: SimHolding[], data: MarketData, date: string) {
   return holdings.reduce((sum, holding) => sum + holding.shares * priceOnOrBefore(data[holding.ticker]?.prices ?? [], date), 0);
 }
 
-function toHoldingResults(holdings: SimHolding[], data: MarketData, endDate: string): HoldingResult[] {
+function toHoldingResults(holdings: SimHolding[], data: MarketData, endDate: string, currency: Currency): HoldingResult[] {
   return holdings.map(holding => {
-    const value = holding.shares * priceOnOrBefore(data[holding.ticker]?.prices ?? [], endDate);
+    const market = data[holding.ticker];
+    const value = holding.shares * priceOnOrBefore(market?.prices ?? [], endDate);
+    const nativeValue = market?.nativePrices ? holding.shares * priceOnOrBefore(market.nativePrices, endDate) : value;
     const returnPct = holding.cost ? ((value + holding.dividends - holding.reinvestedDividends - holding.cost) / holding.cost) * 100 : 0;
-    return { ticker: holding.ticker, shares: holding.shares, value, cost: holding.cost, returnPct, dividends: holding.dividends };
+    return { ticker: holding.ticker, shares: holding.shares, value, cost: holding.cost, returnPct, dividends: holding.dividends, currency: market?.currency ?? currency, nativeValue };
   });
 }
 
@@ -127,13 +137,45 @@ function groupDividendsByYear(transactions: Transaction[]) {
   }, {})).map(([year, amount]) => ({ year, amount }));
 }
 
-export async function loadSimulationData(input: SimulationInput): Promise<MarketData> {
-  const tickers = [...new Set(input.holdings.map(holding => holding.ticker.toUpperCase()))];
-  const entries = await Promise.all(tickers.map(async ticker => [ticker, { prices: await fetchPrices(ticker, input.startDate, input.endDate), dividends: await fetchDividends(ticker) }] as const));
-  return Object.fromEntries(entries);
+/**
+ * Expresses every asset in the reporting currency. Prices are converted at each day's rate and dividends at the
+ * rate of their payment date, so the simulation itself never has to know about currencies.
+ */
+export function convertMarketData(data: MarketData, currency: Currency, usdBrl: PricePoint[]): MarketData {
+  return Object.fromEntries(Object.entries(data).map(([ticker, market]) => {
+    const from = market.currency ?? currency;
+    if (from === currency) return [ticker, { ...market, currency: from }];
+    const factor = (date: string) => conversionFactor(from, currency, rateOn(usdBrl, date));
+    return [ticker, {
+      currency: from,
+      nativePrices: market.prices,
+      prices: market.prices.map(point => ({ ...point, price: point.price * factor(point.date) })),
+      dividends: market.dividends.map(dividend => ({ ...dividend, value: dividend.value * factor(dividend.paymentDate) }))
+    }];
+  }));
 }
 
-export function simulatePortfolioTimeline(input: SimulationInput, data: MarketData): SimulationResult {
+export async function loadSimulationData(input: SimulationInput): Promise<{ data: MarketData; exchangeRate?: ExchangeRateInfo }> {
+  const currency = reportingCurrency(input);
+  const tickers = [...new Set(input.holdings.map(holding => holding.ticker.toUpperCase()))];
+  const entries = await Promise.all(tickers.map(async ticker => {
+    const company = await fetchCompany(ticker);
+    return [ticker, { currency: company.currency, prices: await fetchPrices(ticker, input.startDate, input.endDate), dividends: await fetchDividends(ticker) }] as const;
+  }));
+  const native: MarketData = Object.fromEntries(entries);
+  if (!Object.values(native).some(market => market.currency !== currency)) return { data: native };
+
+  const usdBrl = await fetchUsdBrlRates(input.startDate, input.endDate);
+  const quote = (date: string) => conversionFactor('USD', currency === 'USD' ? 'BRL' : 'USD', rateOn(usdBrl, date));
+  // The rate is reported the way Brazilians read it (R$ per US$) when reporting in R$, and US$ per R$ otherwise.
+  const exchangeRate: ExchangeRateInfo = currency === 'BRL'
+    ? { base: 'USD', quote: 'BRL', atStart: rateOn(usdBrl, input.startDate), atEnd: rateOn(usdBrl, input.endDate), source: EXCHANGE_RATE_SOURCE }
+    : { base: 'BRL', quote: 'USD', atStart: quote(input.startDate), atEnd: quote(input.endDate), source: EXCHANGE_RATE_SOURCE };
+  return { data: convertMarketData(native, currency, usdBrl), exchangeRate };
+}
+
+export function simulatePortfolioTimeline(input: SimulationInput, data: MarketData, exchangeRate?: ExchangeRateInfo): SimulationResult {
+  const currency = reportingCurrency(input);
   const holdings = createHoldings(input.holdings);
   const transactions: Transaction[] = [];
   const externalFlows: CashFlow[] = [{ date: input.startDate, amount: -input.initialInvestment }];
@@ -203,7 +245,7 @@ export function simulatePortfolioTimeline(input: SimulationInput, data: MarketDa
     if (series.at(-1)?.date !== date) series.push({ date, value, contributions, cash });
   }
 
-  const holdingResults = toHoldingResults(holdings, data, input.endDate);
+  const holdingResults = toHoldingResults(holdings, data, input.endDate, currency);
   const finalValue = holdingResults.reduce((sum, holding) => sum + holding.value, 0) + cash;
   const dividendTransactions = transactions.filter(transaction => transaction.type === 'DIVIDEND');
   const totalReturn = contributions ? ((finalValue - contributions) / contributions) * 100 : 0;
@@ -234,14 +276,17 @@ export function simulatePortfolioTimeline(input: SimulationInput, data: MarketDa
     allocation: holdingResults.map(holding => ({ ticker: holding.ticker, value: holding.value })),
     dividendsByYear: groupDividendsByYear(dividendTransactions),
     best: rankedHoldings[0],
-    worst: rankedHoldings.at(-1)
+    worst: rankedHoldings.at(-1),
+    currency,
+    exchangeRate
   };
 }
 
-export function runSimulation(input: SimulationInput, data: MarketData): SimulationResult {
-  return simulatePortfolioTimeline(input, data);
+export function runSimulation(input: SimulationInput, data: MarketData, exchangeRate?: ExchangeRateInfo): SimulationResult {
+  return simulatePortfolioTimeline(input, data, exchangeRate);
 }
 
 export async function simulate(input: SimulationInput) {
-  return simulatePortfolioTimeline(input, await loadSimulationData(input));
+  const { data, exchangeRate } = await loadSimulationData(input);
+  return simulatePortfolioTimeline(input, data, exchangeRate);
 }

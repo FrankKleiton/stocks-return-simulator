@@ -502,7 +502,7 @@ describe('US stocks and FIIs', () => {
 
   test('fetchCompany goes straight to /stocks/ for letter-only tickers', async () => {
     const fetchMock = mockSite([['/stocks/aapl/', textResponse(stockHtml())]]);
-    expect((await fetchCompany('AAPL')).kind).toBe('stock');
+    expect(await fetchCompany('AAPL')).toMatchObject({ kind: 'stock', currency: 'USD' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0][0])).toBe('https://investidor10.com.br/stocks/aapl/');
   });
@@ -512,9 +512,9 @@ describe('US stocks and FIIs', () => {
       ['/fiis/xpml11/', textResponse(fiiHtml())],
       ['/fiis/taee11/', gone()], ['/acoes/taee11/', textResponse(companyHtml('TAEE11', 70, 60))]
     ]);
-    expect((await fetchCompany('XPML11')).kind).toBe('fii');
+    expect(await fetchCompany('XPML11')).toMatchObject({ kind: 'fii', currency: 'BRL' });
     const unit = await fetchCompany('TAEE11');
-    expect(unit).toMatchObject({ kind: 'acao', tickerId: 70, companyId: 60 });
+    expect(unit).toMatchObject({ kind: 'acao', currency: 'BRL', tickerId: 70, companyId: 60 });
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
       'https://investidor10.com.br/fiis/xpml11/', 'https://investidor10.com.br/fiis/taee11/', 'https://investidor10.com.br/acoes/taee11/'
     ]);
@@ -566,9 +566,9 @@ describe('US stocks and FIIs', () => {
 describe('ETFs', () => {
   test('parseCompanyPage reads the ETF page: etf id, name from the meta description, capitalisation card and dividends', () => {
     const company = parseCompanyPage('exus', etfHtml(), 'etf');
-    expect(company).toMatchObject({ ticker: 'EXUS', kind: 'etf', tickerId: 436901, companyId: 0, name: 'Macquarie Focused International Core ETF', sector: 'ETF', liquidity: 0, marketCap: 90_960_000 });
+    expect(company).toMatchObject({ ticker: 'EXUS', kind: 'etf', currency: 'USD', tickerId: 436901, companyId: 0, name: 'Macquarie Focused International Core ETF', sector: 'ETF', liquidity: 0, marketCap: 90_960_000 });
     expect(company.dividends).toEqual([{ ticker: 'EXUS', date: '2025-12-23', paymentDate: '2025-12-31', value: 0.009, type: 'Dividendos' }]);
-    expect(parseCompanyPage('bova11', etfHtml('BOVA11', 9, 'iShares Ibovespa Fundo de Índice', 'R$ 18,87 B', false), 'etf')).toMatchObject({ tickerId: 9, name: 'iShares Ibovespa Fundo de Índice', marketCap: 18_870_000_000, dividends: [] });
+    expect(parseCompanyPage('bova11', etfHtml('BOVA11', 9, 'iShares Ibovespa Fundo de Índice', 'R$ 18,87 B', false), 'etf')).toMatchObject({ tickerId: 9, currency: 'BRL', name: 'iShares Ibovespa Fundo de Índice', marketCap: 18_870_000_000, dividends: [] });
     expect(() => parseCompanyPage('EXUS', '<html></html>', 'etf')).toThrow(UpstreamError);
   });
 

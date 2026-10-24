@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { runSimulation, simulatePortfolioTimeline } from './simulator';
+import { convertMarketData, runSimulation, simulatePortfolioTimeline } from './simulator';
 import type { SimulationInput } from './types';
 
 const input = (startDate: string): SimulationInput => ({
@@ -143,5 +143,39 @@ describe('portfolio simulator dividends', () => {
     const result = runSimulation(input('2024-01-01'), data);
 
     expect(result.annualDividendIncome).toBe(100);
+  });
+});
+
+describe('portfolio simulator currencies', () => {
+  const usdBrl = [{ date: '2024-01-01', price: 5 }, { date: '2024-02-01', price: 4 }, { date: '2024-03-01', price: 5 }];
+  const usdAsset = { currency: 'USD' as const, prices: [{ date: '2024-01-01', price: 10 }, { date: '2024-02-01', price: 10 }, { date: '2024-03-01', price: 10 }], dividends: [{ ticker: 'USD1', date: '2024-01-15', paymentDate: '2024-02-15', value: 1 }] };
+
+  test('reports in BRL by default and keeps each holding in its own currency', () => {
+    const result = runSimulation(input('2024-01-01'), data);
+    expect(result.currency).toBe('BRL');
+    expect(result.exchangeRate).toBeUndefined();
+    expect(result.holdings[0]).toMatchObject({ currency: 'BRL', nativeValue: result.holdings[0].value });
+  });
+
+  test('convertMarketData turns US$ prices and dividends into R$ at the rate of each date', () => {
+    const converted = convertMarketData({ USD1: usdAsset }, 'BRL', usdBrl);
+    expect(converted.USD1.prices.map(p => p.price)).toEqual([50, 40, 50]);
+    expect(converted.USD1.dividends[0].value).toBe(4); // paid on 2024-02-15, when the rate was 4
+    expect(converted.USD1.nativePrices).toBe(usdAsset.prices);
+    expect(converted.USD1.currency).toBe('USD');
+  });
+
+  test('convertMarketData leaves assets already in the reporting currency alone and divides when reporting in US$', () => {
+    const converted = convertMarketData({ TEST3: { ...data.TEST3, currency: 'BRL' }, USD1: usdAsset }, 'USD', usdBrl);
+    expect(converted.TEST3.prices.map(p => p.price)).toEqual([2, 2.5, 2]);
+    expect(converted.USD1.prices).toBe(usdAsset.prices);
+    expect(converted.USD1.nativePrices).toBeUndefined();
+  });
+
+  test('a converted holding exposes its value in the native currency alongside the reported one', () => {
+    const converted = convertMarketData({ USD1: usdAsset }, 'BRL', usdBrl);
+    const result = runSimulation({ ...input('2024-01-01'), holdings: [{ ticker: 'USD1', allocation: 100 }], dividendMode: 'ignore' }, converted);
+    // R$ 1000 buys 20 shares at R$ 50 (US$ 10 × 5); on 2024-03-01 they are worth R$ 1000 again, i.e. US$ 200.
+    expect(result.holdings[0]).toMatchObject({ currency: 'USD', shares: 20, value: 1000, nativeValue: 200 });
   });
 });
